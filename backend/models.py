@@ -44,3 +44,19 @@ class BookingSegment(Base):
     seat = relationship("Seat", back_populates="bookings")
     origin = relationship("Station", foreign_keys=[origin_station_id])
     destination = relationship("Station", foreign_keys=[destination_station_id])
+
+
+class WaitlistEntry(Base):
+    __tablename__ = "waitlist_entries"
+
+    id = Column(Integer, primary_key=True, index=True)
+    origin_station_id = Column(Integer, ForeignKey("stations.id"), nullable=False)
+    destination_station_id = Column(Integer, ForeignKey("stations.id"), nullable=False)
+    travel_date = Column(Date, nullable=False)
+    passenger_name = Column(String, nullable=False)
+    booking_id = Column(Integer, ForeignKey("booking_segments.id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    fulfilled_at = Column(DateTime(timezone=True), nullable=True)
+
+    origin = relationship("Station", foreign_keys=[origin_station_id])
+    destination = relationship("Station", foreign_keys=[destination_station_id])
