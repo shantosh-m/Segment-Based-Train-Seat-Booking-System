@@ -1,0 +1,40 @@
+services:
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: railway_user
+      POSTGRES_PASSWORD: railway_pass
+      POSTGRES_DB: railway_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U railway_user -d railway_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://railway_user:railway_pass@db:5432/railway_db
+      COACH_COUNT: ${COACH_COUNT:-3}
+      SEATS_PER_COACH: ${SEATS_PER_COACH:-10}
+      COACH_PREFIX: ${COACH_PREFIX:-R}
+      SEED_STATIONS_JSON: ${SEED_STATIONS_JSON:-[{"name":"Colombo Fort","order_index":0,"distance_km":0.0},{"name":"Ragama","order_index":1,"distance_km":14.0},{"name":"Polgahawela","order_index":2,"distance_km":72.0},{"name":"Kandy","order_index":3,"distance_km":118.0},{"name":"Nawalapitiya","order_index":4,"distance_km":147.0},{"name":"Hatton","order_index":5,"distance_km":174.0},{"name":"Nanu Oya","order_index":6,"distance_km":206.0},{"name":"Pattipola","order_index":7,"distance_km":224.0},{"name":"Ella","order_index":8,"distance_km":271.0},{"name":"Badulla","order_index":9,"distance_km":292.0}]
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
