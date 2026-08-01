@@ -27,3 +27,20 @@ class Seat(Base):
     seat_number = Column(Integer, nullable=False)
 
     coach = relationship("Coach", back_populates="seats")
+    bookings = relationship("BookingSegment", back_populates="seat")
+
+class BookingSegment(Base):
+    __tablename__ = "booking_segments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    seat_id = Column(Integer, ForeignKey("seats.id"), nullable=False)
+    origin_station_id = Column(Integer, ForeignKey("stations.id"), nullable=False)
+    destination_station_id = Column(Integer, ForeignKey("stations.id"), nullable=False)
+    travel_date = Column(Date, nullable=False)
+    passenger_name = Column(String, nullable=False)
+    fare = Column(Float, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    seat = relationship("Seat", back_populates="bookings")
+    origin = relationship("Station", foreign_keys=[origin_station_id])
+    destination = relationship("Station", foreign_keys=[destination_station_id])
