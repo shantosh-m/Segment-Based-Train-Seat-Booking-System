@@ -1,3 +1,5 @@
+from datetime import date, datetime
+
 from pydantic import BaseModel
 
 class StationOut(BaseModel):
@@ -14,3 +16,21 @@ class SeatAvailability(BaseModel):
     seat_number: int
     coach_number: str
     is_available: bool
+
+class BookingRequest(BaseModel):
+    seat_id: int
+    origin_station_id: int
+    destination_station_id: int
+    travel_date: date
+    passenger_name: str
+
+class BookingResponse(BaseModel):
+    booking_id: int
+    seat_id: int
+    seat_number: int
+    coach_number: str
+    origin: str
+    destination: str
+    travel_date: date
+    fare: float
+    passenger_name: str
