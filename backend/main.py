@@ -94,3 +94,12 @@ def list_recent_bookings(limit: int = 6, db: Session = Depends(get_db)):
 )
 def list_recent_waitlist(limit: int = 6, db: Session = Depends(get_db)):
     return crud.get_recent_waitlist(db, limit)
+
+
+@app.delete(
+    "/api/v1/bookings/{booking_id}",
+    response_model=schemas.BookingCancelResponse,
+    dependencies=[Depends(require_staff_access)],
+)
+def delete_booking(booking_id: int, db: Session = Depends(get_db)):
+    return crud.cancel_booking(db, booking_id)

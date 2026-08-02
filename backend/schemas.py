@@ -36,6 +36,14 @@ class BookingResponse(BaseModel):
     passenger_name: str
 
 
+class BookingCancelResponse(BaseModel):
+    booking_id: int
+    passenger_name: str
+    seat_number: int
+    coach_number: str
+    travel_date: date
+
+
 class WaitlistRequest(BaseModel):
     origin_station_id: int
     destination_station_id: int

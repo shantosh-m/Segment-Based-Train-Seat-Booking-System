@@ -247,3 +247,64 @@ def get_recent_waitlist(db: Session, limit: int = 6):
             }
         )
     return results
+
+def find_available_seat_id(db: Session, origin_id: int, dest_id: int, travel_date: date):
+    availability = get_seats_availability(db, origin_id, dest_id, travel_date)
+    for seat in availability:
+        if seat["is_available"]:
+            return seat["seat_id"]
+    return None
+
+def cancel_booking(db: Session, booking_id: int):
+    try:
+        booking = db.query(BookingSegment).filter(BookingSegment.id == booking_id).first()
+        if not booking:
+            raise HTTPException(status_code=404, detail="Booking not found")
+
+        seat = booking.seat
+        passenger_name = booking.passenger_name
+        origin_id = booking.origin_station_id
+        destination_id = booking.destination_station_id
+        travel_date = booking.travel_date
+
+        db.delete(booking)
+
+        waitlist_entry = (
+            db.query(WaitlistEntry)
+            .filter(
+                WaitlistEntry.origin_station_id == origin_id,
+                WaitlistEntry.destination_station_id == destination_id,
+                WaitlistEntry.travel_date == travel_date,
+                WaitlistEntry.fulfilled_at.is_(None),
+            )
+            .order_by(WaitlistEntry.created_at.asc())
+            .first()
+        )
+
+        if waitlist_entry:
+            promoted_fare = calculate_fare(db, origin_id, destination_id)
+            promoted_booking = BookingSegment(
+                seat_id=find_available_seat_id(db, origin_id, destination_id, travel_date) or seat.id,
+                origin_station_id=origin_id,
+                destination_station_id=destination_id,
+                travel_date=travel_date,
+                passenger_name=waitlist_entry.passenger_name,
+                fare=promoted_fare,
+            )
+            db.add(promoted_booking)
+            db.flush()
+            waitlist_entry.booking_id = promoted_booking.id
+            waitlist_entry.fulfilled_at = datetime.utcnow()
+
+        db.commit()
+
+        return {
+            "booking_id": booking_id,
+            "passenger_name": passenger_name,
+            "seat_number": seat.seat_number,
+            "coach_number": seat.coach.coach_number,
+            "travel_date": travel_date,
+        }
+    except Exception as e:
+        db.rollback()
+        raise e
