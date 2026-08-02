@@ -60,3 +60,32 @@ class WaitlistResponse(BaseModel):
     queue_position: int
     created_at: datetime
 
+class AdminSummary(BaseModel):
+    total_stations: int
+    total_coaches: int
+    total_seats: int
+    total_bookings: int
+    waitlist_count: int
+    unique_seats_used: int
+    revenue: float
+    utilization_pct: float
+    coach_utilization: list[CoachUtilization]
+
+class CoachUtilization(BaseModel):
+    coach_number: str
+    total_seats: int
+    unique_seats_used: int
+    booking_count: int
+    utilization_pct: float
+    
+class FareBreakdown(BaseModel):
+    base_fare: float
+    distance_km: float
+    distance_charge: float
+    multiplier: float
+    peak_multiplier: float
+    final_fare: float
+
+class FareResponse(BaseModel):
+    fare: float
+    breakdown: FareBreakdown

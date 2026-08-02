@@ -308,3 +308,64 @@ def cancel_booking(db: Session, booking_id: int):
     except Exception as e:
         db.rollback()
         raise e
+
+
+def get_admin_summary(db: Session):
+    total_stations = db.query(func.count(Station.id)).scalar() or 0
+    total_coaches = db.query(func.count(Coach.id)).scalar() or 0
+    total_seats = db.query(func.count(Seat.id)).scalar() or 0
+    total_bookings = db.query(func.count(BookingSegment.id)).scalar() or 0
+    waitlist_count = (
+        db.query(func.count(WaitlistEntry.id))
+        .filter(WaitlistEntry.fulfilled_at.is_(None))
+        .scalar()
+        or 0
+    )
+    revenue = db.query(func.coalesce(func.sum(BookingSegment.fare), 0)).scalar() or 0
+
+    unique_seats_used = (
+        db.query(func.count(func.distinct(BookingSegment.seat_id))).scalar() or 0
+    )
+    utilization_pct = (unique_seats_used / total_seats * 100) if total_seats else 0
+
+    coach_rows = (
+        db.query(
+            Coach.coach_number,
+            Coach.total_seats,
+            func.count(func.distinct(Seat.id)).label("seat_count"),
+            func.count(BookingSegment.id).label("booking_count"),
+            func.count(func.distinct(BookingSegment.seat_id)).label("unique_seats_used"),
+        )
+        .join(Seat, Seat.coach_id == Coach.id)
+        .outerjoin(BookingSegment, BookingSegment.seat_id == Seat.id)
+        .group_by(Coach.id)
+        .order_by(Coach.coach_number)
+        .all()
+    )
+
+    coach_utilization = []
+    for coach_number, total_seats_per_coach, _, booking_count, unique_used in coach_rows:
+        coach_utilization.append(
+            {
+                "coach_number": coach_number,
+                "total_seats": total_seats_per_coach,
+                "unique_seats_used": unique_used,
+                "booking_count": booking_count,
+                "utilization_pct": round(
+                    (unique_used / total_seats_per_coach * 100) if total_seats_per_coach else 0,
+                    2,
+                ),
+            }
+        )
+
+    return {
+        "total_stations": total_stations,
+        "total_coaches": total_coaches,
+        "total_seats": total_seats,
+        "total_bookings": total_bookings,
+        "waitlist_count": waitlist_count,
+        "unique_seats_used": unique_seats_used,
+        "revenue": round(float(revenue), 2),
+        "utilization_pct": round(utilization_pct, 2),
+        "coach_utilization": coach_utilization,
+    }

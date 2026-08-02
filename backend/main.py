@@ -43,7 +43,7 @@ def list_stations(db: Session = Depends(get_db)):
 def get_availability(origin_id: int, destination_id: int, travel_date: date, db: Session = Depends(get_db)):
     return crud.get_seats_availability(db, origin_id, destination_id, travel_date)
 
-@app.get("/api/v1/fare")
+@app.get("/api/v1/fare", response_model=schemas.FareResponse)
 def get_fare(origin_id: int, destination_id: int, db: Session = Depends(get_db)):
     fare = crud.calculate_fare(db, origin_id, destination_id)
     breakdown = crud.calculate_fare_breakdown(db, origin_id, destination_id)
@@ -103,3 +103,12 @@ def list_recent_waitlist(limit: int = 6, db: Session = Depends(get_db)):
 )
 def delete_booking(booking_id: int, db: Session = Depends(get_db)):
     return crud.cancel_booking(db, booking_id)
+
+
+@app.get(
+    "/api/v1/admin/summary",
+    response_model=schemas.AdminSummary,
+    dependencies=[Depends(require_staff_access)],
+)
+def admin_summary(db: Session = Depends(get_db)):
+    return crud.get_admin_summary(db)
