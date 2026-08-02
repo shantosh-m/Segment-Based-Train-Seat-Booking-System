@@ -56,3 +56,41 @@ def create_booking(req: schemas.BookingRequest, db: Session = Depends(get_db)):
 @app.post("/api/v1/waitlist", response_model=schemas.WaitlistResponse)
 def create_waitlist(req: schemas.WaitlistRequest, db: Session = Depends(get_db)):
     return crud.create_waitlist_entry(db, req)
+
+
+@app.get(
+    "/api/v1/bookings/recent",
+    response_model=List[schemas.BookingHistoryItem],
+    dependencies=[Depends(require_staff_access)],
+)
+def list_recent_bookings(limit: int = 6, db: Session = Depends(get_db)):
+    recent_bookings = (
+        db.query(models.BookingSegment)
+        .order_by(models.BookingSegment.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+
+    return [
+        {
+            "booking_id": booking.id,
+            "passenger_name": booking.passenger_name,
+            "coach_number": booking.seat.coach.coach_number,
+            "seat_number": booking.seat.seat_number,
+            "origin": booking.origin.name,
+            "destination": booking.destination.name,
+            "travel_date": booking.travel_date,
+            "fare": booking.fare,
+            "created_at": booking.created_at,
+        }
+        for booking in recent_bookings
+    ]
+
+
+@app.get(
+    "/api/v1/waitlist/recent",
+    response_model=List[schemas.WaitlistResponse],
+    dependencies=[Depends(require_staff_access)],
+)
+def list_recent_waitlist(limit: int = 6, db: Session = Depends(get_db)):
+    return crud.get_recent_waitlist(db, limit)

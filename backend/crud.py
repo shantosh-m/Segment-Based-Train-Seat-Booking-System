@@ -26,38 +26,6 @@ def _peak_multiplier() -> float:
         return PEAK_MULTIPLIER
     return 1.0
 
-def check_overlap(orig_a_idx: int, dest_a_idx: int, orig_b_idx: int, dest_b_idx: int) -> bool:
-    start_a, end_a = sorted([orig_a_idx, dest_a_idx])
-    start_b, end_b = sorted([orig_b_idx, dest_b_idx])
-    return max(start_a, start_b) < min(end_a, end_b)
-
-def get_seats_availability(db: Session, origin_id: int, dest_id: int, travel_date: date):
-    orig = db.query(Station).filter(Station.id == origin_id).first()
-    dest = db.query(Station).filter(Station.id == dest_id).first()
-    if not orig or not dest:
-        raise HTTPException(status_code=400, detail="Invalid station selection")
-
-    req_start, req_end = sorted([orig.order_index, dest.order_index])
-    all_seats = db.query(Seat).join(Coach).all()
-    
-    booked_seat_ids = set()
-    segments = db.query(BookingSegment).filter(BookingSegment.travel_date == travel_date).all()
-    for seg in segments:
-        seg_orig = db.query(Station).get(seg.origin_station_id)
-        seg_dest = db.query(Station).get(seg.destination_station_id)
-        if check_overlap(req_start, req_end, seg_orig.order_index, seg_dest.order_index):
-            booked_seat_ids.add(seg.seat_id)
-
-    results = []
-    for seat in all_seats:
-        results.append({
-            "seat_id": seat.id,
-            "seat_number": seat.seat_number,
-            "coach_number": seat.coach.coach_number,
-            "is_available": seat.id not in booked_seat_ids
-        })
-    return results
-
 def calculate_fare(db: Session, origin_id: int, dest_id: int) -> float:
     orig = db.query(Station).filter(Station.id == origin_id).first()
     dest = db.query(Station).filter(Station.id == dest_id).first()
@@ -91,6 +59,41 @@ def calculate_fare_breakdown(db: Session, origin_id: int, dest_id: int):
         "peak_multiplier": peak_multiplier,
         "final_fare": final_fare,
     }
+
+def check_overlap(orig_a_idx: int, dest_a_idx: int, orig_b_idx: int, dest_b_idx: int) -> bool:
+    # Segments overlap iff max(orig1, orig2) < min(dest1, dest2)
+    start_a, end_a = sorted([orig_a_idx, dest_a_idx])
+    start_b, end_b = sorted([orig_b_idx, dest_b_idx])
+    return max(start_a, start_b) < min(end_a, end_b)
+
+def get_seats_availability(db: Session, origin_id: int, dest_id: int, travel_date: date):
+    orig = db.query(Station).filter(Station.id == origin_id).first()
+    dest = db.query(Station).filter(Station.id == dest_id).first()
+    if not orig or not dest:
+        raise HTTPException(status_code=400, detail="Invalid station selection")
+
+    req_start, req_end = sorted([orig.order_index, dest.order_index])
+
+    all_seats = db.query(Seat).join(Coach).all()
+    
+    # Query all active bookings for comparison
+    booked_seat_ids = set()
+    segments = db.query(BookingSegment).filter(BookingSegment.travel_date == travel_date).all()
+    for seg in segments:
+        seg_orig = db.query(Station).get(seg.origin_station_id)
+        seg_dest = db.query(Station).get(seg.destination_station_id)
+        if check_overlap(req_start, req_end, seg_orig.order_index, seg_dest.order_index):
+            booked_seat_ids.add(seg.seat_id)
+
+    results = []
+    for seat in all_seats:
+        results.append({
+            "seat_id": seat.id,
+            "seat_number": seat.seat_number,
+            "coach_number": seat.coach.coach_number,
+            "is_available": seat.id not in booked_seat_ids
+        })
+    return results
 
 def create_booking(db: Session, req):
     # Execute inside explicit transaction with Pessimistic Lock
@@ -208,3 +211,39 @@ def create_waitlist_entry(db: Session, req):
     except Exception as e:
         db.rollback()
         raise e
+
+def get_recent_waitlist(db: Session, limit: int = 6):
+    entries = (
+        db.query(WaitlistEntry)
+        .filter(WaitlistEntry.fulfilled_at.is_(None))
+        .order_by(WaitlistEntry.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+
+    results = []
+    for entry in entries:
+        queue_position = (
+            db.query(func.count(WaitlistEntry.id))
+            .filter(
+                WaitlistEntry.origin_station_id == entry.origin_station_id,
+                WaitlistEntry.destination_station_id == entry.destination_station_id,
+                WaitlistEntry.travel_date == entry.travel_date,
+                WaitlistEntry.fulfilled_at.is_(None),
+                WaitlistEntry.created_at <= entry.created_at,
+            )
+            .scalar()
+            or 0
+        )
+        results.append(
+            {
+                "waitlist_id": entry.id,
+                "passenger_name": entry.passenger_name,
+                "origin": entry.origin.name,
+                "destination": entry.destination.name,
+                "travel_date": entry.travel_date,
+                "queue_position": queue_position,
+                "created_at": entry.created_at,
+            }
+        )
+    return results
