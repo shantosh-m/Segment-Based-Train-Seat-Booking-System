@@ -21,6 +21,7 @@ export default function App() {
   const [destination, setDestination] = useState("");
   const [travelDate, setTravelDate] = useState("");
   const [seats, setSeats] = useState([]);
+  const [selectedSeat, setSelectedSeat] = useState(null);
   const [fare, setFare] = useState(null);
   const [message, setMessage] = useState({ text: "", type: "" });
   const [isLoadingStations, setIsLoadingStations] = useState(true);
@@ -72,6 +73,7 @@ export default function App() {
     setDestination(origin);
     setSeats([]);
     setFare(null);
+    setSelectedSeat(null);
     setMessage({ text: "", type: "" });
   };
 
@@ -94,6 +96,7 @@ export default function App() {
       );
       setSeats(availRes.data);
       setFare(fareRes.data.fare);
+      setSelectedSeat(null);
       setMessage({ text: "", type: "" });
     } catch (err) {
       setMessage({
@@ -154,7 +157,11 @@ export default function App() {
                   <Users className="h-4 w-4" />
                   Available seats
                 </span>
-                <span className="text-sm font-medium">Waiting for search</span>
+                <span className="text-sm font-medium">
+                  {seats.length > 0
+                    ? `${seats.filter((s) => s.is_available).length}/${seats.length}`
+                    : "Waiting for search"}
+                </span>
               </div>
               <div className="flex items-center justify-between rounded-2xl bg-white/5 px-4 py-3">
                 <span className="flex items-center gap-2 text-sm text-slate-300">
@@ -251,6 +258,7 @@ export default function App() {
                       setOrigin(e.target.value);
                       setSeats([]);
                       setFare(null);
+                      setSelectedSeat(null);
                     }}
                     disabled={isLoadingStations}
                   >
@@ -281,6 +289,7 @@ export default function App() {
                       setDestination(e.target.value);
                       setSeats([]);
                       setFare(null);
+                      setSelectedSeat(null);
                     }}
                     disabled={isLoadingStations}
                   >
@@ -311,6 +320,7 @@ export default function App() {
                     setTravelDate(e.target.value);
                     setSeats([]);
                     setFare(null);
+                    setSelectedSeat(null);
                   }}
                   className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 outline-none transition focus:border-emerald-500 focus:bg-white"
                 />
@@ -344,6 +354,45 @@ export default function App() {
                 className={`mt-5 rounded-2xl border px-4 py-3 text-sm ${message.type === "error" ? "border-red-200 bg-red-50 text-red-700" : "border-emerald-200 bg-emerald-50 text-emerald-800"}`}
               >
                 {message.text}
+              </div>
+            )}
+
+            {seats.length > 0 ? (
+              <div className="mt-6">
+                <div className="mb-4">
+                  <h3 className="text-lg font-semibold text-slate-900">
+                    Seat map
+                  </h3>
+                  <p className="text-sm text-slate-500">
+                    Available seats appear in green. Choose one to continue.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+                  {seats.map((seat) => (
+                    <button
+                      key={seat.seat_id}
+                      type="button"
+                      disabled={!seat.is_available}
+                      onClick={() => setSelectedSeat(seat.seat_id)}
+                      className={`rounded-2xl border p-4 text-left transition ${!seat.is_available ? "border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed" : selectedSeat === seat.seat_id ? "border-slate-950 bg-slate-950 text-white shadow-lg shadow-slate-950/20" : "border-emerald-200 bg-emerald-50 text-emerald-900 hover:border-emerald-400 hover:bg-emerald-100"}`}
+                    >
+                      <div className="text-xs font-semibold uppercase tracking-[0.2em] opacity-70">
+                        {seat.coach_number}
+                      </div>
+                      <div className="mt-2 text-lg font-semibold">
+                        Seat {seat.seat_number}
+                      </div>
+                      <div className="mt-1 text-xs opacity-70">
+                        {seat.is_available ? "Available" : "Already reserved"}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="mt-6 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-sm text-slate-500">
+                Select a route and load seat availability to continue.
               </div>
             )}
           </section>
