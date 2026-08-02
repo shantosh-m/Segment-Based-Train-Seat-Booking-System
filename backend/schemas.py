@@ -35,7 +35,18 @@ class BookingResponse(BaseModel):
     fare: float
     passenger_name: str
 
+class BookingHistoryItem(BaseModel):
+    booking_id: int
+    passenger_name: str
+    coach_number: str
+    seat_number: int
+    origin: str
+    destination: str
+    travel_date: date
+    fare: float
+    created_at: datetime
 
+    
 class BookingCancelResponse(BaseModel):
     booking_id: int
     passenger_name: str
@@ -60,6 +71,13 @@ class WaitlistResponse(BaseModel):
     queue_position: int
     created_at: datetime
 
+class CoachUtilization(BaseModel):
+    coach_number: str
+    total_seats: int
+    unique_seats_used: int
+    booking_count: int
+    utilization_pct: float
+
 class AdminSummary(BaseModel):
     total_stations: int
     total_coaches: int
@@ -71,12 +89,6 @@ class AdminSummary(BaseModel):
     utilization_pct: float
     coach_utilization: list[CoachUtilization]
 
-class CoachUtilization(BaseModel):
-    coach_number: str
-    total_seats: int
-    unique_seats_used: int
-    booking_count: int
-    utilization_pct: float
     
 class FareBreakdown(BaseModel):
     base_fare: float

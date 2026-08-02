@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import {
   ArrowRightLeft,
@@ -22,15 +22,22 @@ export default function App() {
   const [travelDate, setTravelDate] = useState("");
   const [seats, setSeats] = useState([]);
   const [selectedSeat, setSelectedSeat] = useState(null);
+  const [passengerName, setPassengerName] = useState("");
   const [fare, setFare] = useState(null);
   const [message, setMessage] = useState({ text: "", type: "" });
   const [isLoadingStations, setIsLoadingStations] = useState(true);
   const [isLoadingAvailability, setIsLoadingAvailability] = useState(false);
+  const [isBooking, setIsBooking] = useState(false);
   const [staffAccessCode, setStaffAccessCode] = useState("");
   const [staffLoginInput, setStaffLoginInput] = useState("");
   const [staffLoginError, setStaffLoginError] = useState("");
 
   const isStaffAuthenticated = Boolean(staffAccessCode);
+
+  const selectedSeatDetails = useMemo(
+    () => seats.find((seat) => seat.seat_id === selectedSeat),
+    [seats, selectedSeat],
+  );
 
   useEffect(() => {
     const today = new Date().toISOString().slice(0, 10);
@@ -74,6 +81,7 @@ export default function App() {
     setSeats([]);
     setFare(null);
     setSelectedSeat(null);
+    setPassengerName("");
     setMessage({ text: "", type: "" });
   };
 
@@ -97,6 +105,7 @@ export default function App() {
       setSeats(availRes.data);
       setFare(fareRes.data.fare);
       setSelectedSeat(null);
+      setPassengerName("");
       setMessage({ text: "", type: "" });
     } catch (err) {
       setMessage({
@@ -105,6 +114,42 @@ export default function App() {
       });
     } finally {
       setIsLoadingAvailability(false);
+    }
+  };
+
+  const handleBooking = async () => {
+    if (!selectedSeat || !passengerName.trim()) {
+      setMessage({
+        text: "Enter a passenger name before confirming the booking.",
+        type: "error",
+      });
+      return;
+    }
+
+    setIsBooking(true);
+    try {
+      const res = await axios.post(`${API_BASE}/bookings`, {
+        seat_id: selectedSeat,
+        origin_station_id: parseInt(origin),
+        destination_station_id: parseInt(destination),
+        travel_date: travelDate,
+        passenger_name: passengerName,
+      });
+      setMessage({
+        text: `Successfully booked Seat ${res.data.seat_number} (${res.data.coach_number}) for LKR ${res.data.fare}!`,
+        type: "success",
+      });
+      setPassengerName("");
+      await fetchAvailabilityAndFare();
+    } catch (err) {
+      setMessage({
+        text:
+          err.response?.data?.detail ||
+          "Booking failed. Seat may have been taken.",
+        type: "error",
+      });
+    } finally {
+      setIsBooking(false);
     }
   };
 
@@ -259,6 +304,7 @@ export default function App() {
                       setSeats([]);
                       setFare(null);
                       setSelectedSeat(null);
+                      setPassengerName("");
                     }}
                     disabled={isLoadingStations}
                   >
@@ -290,6 +336,7 @@ export default function App() {
                       setSeats([]);
                       setFare(null);
                       setSelectedSeat(null);
+                      setPassengerName("");
                     }}
                     disabled={isLoadingStations}
                   >
@@ -321,6 +368,7 @@ export default function App() {
                     setSeats([]);
                     setFare(null);
                     setSelectedSeat(null);
+                    setPassengerName("");
                   }}
                   className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 outline-none transition focus:border-emerald-500 focus:bg-white"
                 />
@@ -389,6 +437,43 @@ export default function App() {
                     </button>
                   ))}
                 </div>
+
+                {selectedSeat && selectedSeatDetails && (
+                  <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:p-5">
+                    <div className="mb-4">
+                      <h3 className="text-base font-semibold text-slate-900">
+                        Confirm booking
+                      </h3>
+                      <p className="text-sm text-slate-500">
+                        You are booking {selectedSeatDetails.coach_number} seat{" "}
+                        {selectedSeatDetails.seat_number} on {travelDate}.
+                      </p>
+                    </div>
+
+                    <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
+                      <input
+                        type="text"
+                        value={passengerName}
+                        onChange={(e) => setPassengerName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            handleBooking();
+                          }
+                        }}
+                        placeholder="Enter passenger full name"
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 outline-none transition focus:border-emerald-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleBooking}
+                        disabled={isBooking}
+                        className="inline-flex items-center justify-center rounded-2xl bg-emerald-600 px-5 py-3 font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-emerald-400"
+                      >
+                        {isBooking ? "Booking..." : "Confirm & Pay"}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="mt-6 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-sm text-slate-500">
