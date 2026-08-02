@@ -93,51 +93,58 @@ def calculate_fare_breakdown(db: Session, origin_id: int, dest_id: int):
     }
 
 def create_booking(db: Session, req):
-    seat = db.query(Seat).filter(Seat.id == req.seat_id).first()
-    if not seat:
-        raise HTTPException(status_code=404, detail="Seat not found")
+    # Execute inside explicit transaction with Pessimistic Lock
+    try:
+        # Lock the seat row to serialize concurrent booking requests
+        seat = db.query(Seat).with_for_update().filter(Seat.id == req.seat_id).first()
+        if not seat:
+            raise HTTPException(status_code=404, detail="Seat not found")
 
-    orig = db.query(Station).filter(Station.id == req.origin_station_id).first()
-    dest = db.query(Station).filter(Station.id == req.destination_station_id).first()
-    if not orig or not dest or orig.id == dest.id:
-        raise HTTPException(status_code=400, detail="Invalid journey segment")
+        orig = db.query(Station).filter(Station.id == req.origin_station_id).first()
+        dest = db.query(Station).filter(Station.id == req.destination_station_id).first()
+        if not orig or not dest or orig.id == dest.id:
+            raise HTTPException(status_code=400, detail="Invalid journey segment")
 
-    req_start, req_end = sorted([orig.order_index, dest.order_index])
+        req_start, req_end = sorted([orig.order_index, dest.order_index])
 
-    existing = db.query(BookingSegment).filter(BookingSegment.seat_id == req.seat_id).all()
-    for b in existing:
-        if b.travel_date != req.travel_date:
-            continue
-        b_orig = db.query(Station).get(b.origin_station_id)
-        b_dest = db.query(Station).get(b.destination_station_id)
-        if check_overlap(req_start, req_end, b_orig.order_index, b_dest.order_index):
-            raise HTTPException(
-                status_code=409, 
-                detail="Seat is already reserved for an overlapping segment of this trip"
-            )
+        # Check existing bookings for overlap under lock
+        existing = db.query(BookingSegment).filter(BookingSegment.seat_id == req.seat_id).all()
+        for b in existing:
+            if b.travel_date != req.travel_date:
+                continue
+            b_orig = db.query(Station).get(b.origin_station_id)
+            b_dest = db.query(Station).get(b.destination_station_id)
+            if check_overlap(req_start, req_end, b_orig.order_index, b_dest.order_index):
+                raise HTTPException(
+                    status_code=409, 
+                    detail="Seat is already reserved for an overlapping segment of this trip"
+                )
 
-    fare = calculate_fare(db, req.origin_station_id, req.destination_station_id)
+        fare = calculate_fare(db, req.origin_station_id, req.destination_station_id)
 
-    booking = BookingSegment(
-        seat_id=req.seat_id,
-        origin_station_id=req.origin_station_id,
-        destination_station_id=req.destination_station_id,
-        travel_date=req.travel_date,
-        passenger_name=req.passenger_name,
-        fare=fare
-    )
-    db.add(booking)
-    db.commit()
-    db.refresh(booking)
+        booking = BookingSegment(
+            seat_id=req.seat_id,
+            origin_station_id=req.origin_station_id,
+            destination_station_id=req.destination_station_id,
+            travel_date=req.travel_date,
+            passenger_name=req.passenger_name,
+            fare=fare
+        )
+        db.add(booking)
+        db.commit()
+        db.refresh(booking)
 
-    return {
-        "booking_id": booking.id,
-        "seat_id": seat.id,
-        "seat_number": seat.seat_number,
-        "coach_number": seat.coach.coach_number,
-        "origin": orig.name,
-        "destination": dest.name,
-        "travel_date": booking.travel_date,
-        "fare": fare,
-        "passenger_name": booking.passenger_name
-    }
+        return {
+            "booking_id": booking.id,
+            "seat_id": seat.id,
+            "seat_number": seat.seat_number,
+            "coach_number": seat.coach.coach_number,
+            "origin": orig.name,
+            "destination": dest.name,
+            "travel_date": booking.travel_date,
+            "fare": fare,
+            "passenger_name": booking.passenger_name
+        }
+    except Exception as e:
+        db.rollback()
+        raise e
