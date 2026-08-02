@@ -13,6 +13,15 @@ seed.seed_data()
 
 app = FastAPI(title="Colombo-Badulla Segment Railway Booking API")
 
+STAFF_ACCESS_CODE = os.getenv("STAFF_ACCESS_CODE", "staff123")
+
+def require_staff_access(x_staff_access: str | None = Header(default=None, alias="X-Staff-Access")):
+    if x_staff_access != STAFF_ACCESS_CODE:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Staff access required",
+        )
+
 origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
