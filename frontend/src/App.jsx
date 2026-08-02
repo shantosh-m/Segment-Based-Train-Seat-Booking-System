@@ -24,6 +24,7 @@ export default function App() {
   const [selectedSeat, setSelectedSeat] = useState(null);
   const [passengerName, setPassengerName] = useState("");
   const [fare, setFare] = useState(null);
+  const [fareBreakdown, setFareBreakdown] = useState(null);
   const [message, setMessage] = useState({ text: "", type: "" });
   const [isLoadingStations, setIsLoadingStations] = useState(true);
   const [isLoadingAvailability, setIsLoadingAvailability] = useState(false);
@@ -80,6 +81,7 @@ export default function App() {
     setDestination(origin);
     setSeats([]);
     setFare(null);
+    setFareBreakdown(null);
     setSelectedSeat(null);
     setPassengerName("");
     setMessage({ text: "", type: "" });
@@ -104,6 +106,7 @@ export default function App() {
       );
       setSeats(availRes.data);
       setFare(fareRes.data.fare);
+      setFareBreakdown(fareRes.data.breakdown);
       setSelectedSeat(null);
       setPassengerName("");
       setMessage({ text: "", type: "" });
@@ -303,6 +306,7 @@ export default function App() {
                       setOrigin(e.target.value);
                       setSeats([]);
                       setFare(null);
+                      setFareBreakdown(null);
                       setSelectedSeat(null);
                       setPassengerName("");
                     }}
@@ -335,6 +339,7 @@ export default function App() {
                       setDestination(e.target.value);
                       setSeats([]);
                       setFare(null);
+                      setFareBreakdown(null);
                       setSelectedSeat(null);
                       setPassengerName("");
                     }}
@@ -367,6 +372,7 @@ export default function App() {
                     setTravelDate(e.target.value);
                     setSeats([]);
                     setFare(null);
+                    setFareBreakdown(null);
                     setSelectedSeat(null);
                     setPassengerName("");
                   }}
@@ -481,6 +487,62 @@ export default function App() {
               </div>
             )}
           </section>
+
+          <aside className="space-y-6">
+            {fareBreakdown && (
+              <section className="rounded-[2rem] border border-slate-200/80 bg-white/85 p-6 shadow-xl shadow-slate-900/5 backdrop-blur sm:p-8">
+                <h2 className="text-xl font-semibold text-slate-900">
+                  Fare breakdown
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-slate-500">
+                  Distance, journey-length tiering, and peak-time pricing all
+                  factor into the final price.
+                </p>
+                <div className="mt-5 grid grid-cols-2 gap-3">
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                    <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400">
+                      Distance
+                    </div>
+                    <div className="mt-1 text-lg font-semibold text-slate-900">
+                      {fareBreakdown.distance_km} km
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                    <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400">
+                      Base fare
+                    </div>
+                    <div className="mt-1 text-lg font-semibold text-slate-900">
+                      LKR {fareBreakdown.base_fare}
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                    <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400">
+                      Journey tier
+                    </div>
+                    <div className="mt-1 text-lg font-semibold text-slate-900">
+                      x{fareBreakdown.multiplier}
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                    <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400">
+                      Peak factor
+                    </div>
+                    <div className="mt-1 text-lg font-semibold text-slate-900">
+                      x{fareBreakdown.peak_multiplier}
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-4 rounded-2xl border border-slate-950 bg-slate-950 p-4 text-white">
+                  <div className="text-xs uppercase tracking-[0.2em] text-slate-300">
+                    Final fare
+                  </div>
+                  <div className="mt-1 text-2xl font-semibold">
+                    LKR {fareBreakdown.final_fare}
+                  </div>
+                </div>
+              </section>
+            )}
+          </aside>
         </main>
       </div>
     </div>
