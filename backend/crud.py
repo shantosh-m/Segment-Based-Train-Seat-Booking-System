@@ -70,3 +70,24 @@ def calculate_fare(db: Session, origin_id: int, dest_id: int) -> float:
     peak_multiplier = _peak_multiplier()
     fare = (BASE_FARE + distance_charge) * journey_multiplier * peak_multiplier
     return round(fare, 2)
+
+def calculate_fare_breakdown(db: Session, origin_id: int, dest_id: int):
+    orig = db.query(Station).filter(Station.id == origin_id).first()
+    dest = db.query(Station).filter(Station.id == dest_id).first()
+    if not orig or not dest:
+        raise HTTPException(status_code=400, detail="Invalid origin or destination station")
+
+    distance = abs(dest.distance_km - orig.distance_km)
+    distance_charge = distance * RATE_PER_KM
+    journey_multiplier = _journey_multiplier(distance)
+    peak_multiplier = _peak_multiplier()
+    final_fare = round((BASE_FARE + distance_charge) * journey_multiplier * peak_multiplier, 2)
+
+    return {
+        "base_fare": BASE_FARE,
+        "distance_km": round(distance, 2),
+        "distance_charge": round(distance_charge, 2),
+        "multiplier": journey_multiplier,
+        "peak_multiplier": peak_multiplier,
+        "final_fare": final_fare,
+    }
