@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import {
+  ArrowRightLeft,
   ChevronDown,
   KeyRound,
   MapPin,
   LogOut,
+  RefreshCw,
   Shield,
   TrainFront,
   Users,
@@ -22,6 +24,7 @@ export default function App() {
   const [fare, setFare] = useState(null);
   const [message, setMessage] = useState({ text: "", type: "" });
   const [isLoadingStations, setIsLoadingStations] = useState(true);
+  const [isLoadingAvailability, setIsLoadingAvailability] = useState(false);
   const [staffAccessCode, setStaffAccessCode] = useState("");
   const [staffLoginInput, setStaffLoginInput] = useState("");
   const [staffLoginError, setStaffLoginError] = useState("");
@@ -62,6 +65,45 @@ export default function App() {
       isMounted = false;
     };
   }, []);
+
+  const handleSwapRoute = () => {
+    if (!origin || !destination) return;
+    setOrigin(destination);
+    setDestination(origin);
+    setSeats([]);
+    setFare(null);
+    setMessage({ text: "", type: "" });
+  };
+
+  const fetchAvailabilityAndFare = async () => {
+    if (!origin || !destination || origin === destination || !travelDate) {
+      setMessage({
+        text: "Choose two different stations and a travel date to continue.",
+        type: "error",
+      });
+      return;
+    }
+
+    setIsLoadingAvailability(true);
+    try {
+      const availRes = await axios.get(
+        `${API_BASE}/seats/availability?origin_id=${origin}&destination_id=${destination}&travel_date=${travelDate}`,
+      );
+      const fareRes = await axios.get(
+        `${API_BASE}/fare?origin_id=${origin}&destination_id=${destination}`,
+      );
+      setSeats(availRes.data);
+      setFare(fareRes.data.fare);
+      setMessage({ text: "", type: "" });
+    } catch (err) {
+      setMessage({
+        text: err.response?.data?.detail || "Error loading seats",
+        type: "error",
+      });
+    } finally {
+      setIsLoadingAvailability(false);
+    }
+  };
 
   const handleStaffLogin = () => {
     const trimmedCode = staffLoginInput.trim();
@@ -119,7 +161,9 @@ export default function App() {
                   <Wallet className="h-4 w-4" />
                   Fare
                 </span>
-                <span className="text-sm font-medium">No fare loaded yet</span>
+                <span className="text-sm font-medium">
+                  {fare ? `LKR ${fare}` : "No fare loaded yet"}
+                </span>
               </div>
               <div className="rounded-2xl border border-emerald-400/20 bg-slate-900/60 p-4">
                 <div className="flex items-center gap-2 text-sm font-semibold text-emerald-200">
@@ -183,6 +227,15 @@ export default function App() {
                   Pick an origin and destination to load live seat availability.
                 </p>
               </div>
+              <button
+                type="button"
+                onClick={handleSwapRoute}
+                disabled={!origin || !destination || origin === destination}
+                className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <ArrowRightLeft className="h-4 w-4" />
+                Swap
+              </button>
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
@@ -194,7 +247,11 @@ export default function App() {
                   <select
                     className="w-full appearance-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 pr-10 text-slate-900 outline-none transition focus:border-emerald-500 focus:bg-white"
                     value={origin}
-                    onChange={(e) => setOrigin(e.target.value)}
+                    onChange={(e) => {
+                      setOrigin(e.target.value);
+                      setSeats([]);
+                      setFare(null);
+                    }}
                     disabled={isLoadingStations}
                   >
                     <option value="">
@@ -220,7 +277,11 @@ export default function App() {
                   <select
                     className="w-full appearance-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 pr-10 text-slate-900 outline-none transition focus:border-emerald-500 focus:bg-white"
                     value={destination}
-                    onChange={(e) => setDestination(e.target.value)}
+                    onChange={(e) => {
+                      setDestination(e.target.value);
+                      setSeats([]);
+                      setFare(null);
+                    }}
                     disabled={isLoadingStations}
                   >
                     <option value="">
@@ -246,11 +307,37 @@ export default function App() {
                   type="date"
                   value={travelDate}
                   min={new Date().toISOString().slice(0, 10)}
-                  onChange={(e) => setTravelDate(e.target.value)}
+                  onChange={(e) => {
+                    setTravelDate(e.target.value);
+                    setSeats([]);
+                    setFare(null);
+                  }}
                   className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 outline-none transition focus:border-emerald-500 focus:bg-white"
                 />
               </div>
             </div>
+
+            <button
+              type="button"
+              onClick={fetchAvailabilityAndFare}
+              disabled={
+                !origin ||
+                !destination ||
+                origin === destination ||
+                !travelDate ||
+                isLoadingAvailability
+              }
+              className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
+            >
+              {isLoadingAvailability ? (
+                <RefreshCw className="h-4 w-4 animate-spin" />
+              ) : (
+                <TrainFront className="h-4 w-4" />
+              )}
+              {isLoadingAvailability
+                ? "Loading seats..."
+                : "Check available seats"}
+            </button>
 
             {message.text && (
               <div
