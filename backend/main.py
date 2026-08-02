@@ -25,3 +25,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.get("/api/v1/stations", response_model=List[schemas.StationOut])
+def list_stations(db: Session = Depends(get_db)):
+    return db.query(models.Station).order_by(models.Station.order_index).all()
+
+@app.get("/api/v1/seats/availability", response_model=List[schemas.SeatAvailability])
+def get_availability(origin_id: int, destination_id: int, travel_date: date, db: Session = Depends(get_db)):
+    return crud.get_seats_availability(db, origin_id, destination_id, travel_date)
