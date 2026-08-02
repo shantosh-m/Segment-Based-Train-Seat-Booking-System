@@ -1,6 +1,6 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
+import axios from "axios";
 import {
-  ArrowRightLeft,
   ChevronDown,
   KeyRound,
   MapPin,
@@ -11,6 +11,8 @@ import {
   Wallet,
 } from "lucide-react";
 
+const API_BASE = "http://localhost:8000/api/v1";
+
 export default function App() {
   const [stations, setStations] = useState([]);
   const [origin, setOrigin] = useState("");
@@ -18,11 +20,48 @@ export default function App() {
   const [travelDate, setTravelDate] = useState("");
   const [seats, setSeats] = useState([]);
   const [fare, setFare] = useState(null);
+  const [message, setMessage] = useState({ text: "", type: "" });
+  const [isLoadingStations, setIsLoadingStations] = useState(true);
   const [staffAccessCode, setStaffAccessCode] = useState("");
   const [staffLoginInput, setStaffLoginInput] = useState("");
   const [staffLoginError, setStaffLoginError] = useState("");
 
   const isStaffAuthenticated = Boolean(staffAccessCode);
+
+  useEffect(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    setTravelDate(today);
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    axios
+      .get(`${API_BASE}/stations`)
+      .then((res) => {
+        if (isMounted) {
+          setStations(res.data);
+        }
+      })
+      .catch((err) => {
+        console.error(err);
+        if (isMounted) {
+          setMessage({
+            text: "Unable to load stations. Please refresh and try again.",
+            type: "error",
+          });
+        }
+      })
+      .finally(() => {
+        if (isMounted) {
+          setIsLoadingStations(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const handleStaffLogin = () => {
     const trimmedCode = staffLoginInput.trim();
@@ -156,8 +195,13 @@ export default function App() {
                     className="w-full appearance-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 pr-10 text-slate-900 outline-none transition focus:border-emerald-500 focus:bg-white"
                     value={origin}
                     onChange={(e) => setOrigin(e.target.value)}
+                    disabled={isLoadingStations}
                   >
-                    <option value="">Select origin</option>
+                    <option value="">
+                      {isLoadingStations
+                        ? "Loading stations..."
+                        : "Select origin"}
+                    </option>
                     {stations.map((station) => (
                       <option key={station.id} value={station.id}>
                         {station.name}
@@ -177,8 +221,13 @@ export default function App() {
                     className="w-full appearance-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 pr-10 text-slate-900 outline-none transition focus:border-emerald-500 focus:bg-white"
                     value={destination}
                     onChange={(e) => setDestination(e.target.value)}
+                    disabled={isLoadingStations}
                   >
-                    <option value="">Select destination</option>
+                    <option value="">
+                      {isLoadingStations
+                        ? "Loading stations..."
+                        : "Select destination"}
+                    </option>
                     {stations.map((station) => (
                       <option key={station.id} value={station.id}>
                         {station.name}
@@ -202,6 +251,14 @@ export default function App() {
                 />
               </div>
             </div>
+
+            {message.text && (
+              <div
+                className={`mt-5 rounded-2xl border px-4 py-3 text-sm ${message.type === "error" ? "border-red-200 bg-red-50 text-red-700" : "border-emerald-200 bg-emerald-50 text-emerald-800"}`}
+              >
+                {message.text}
+              </div>
+            )}
           </section>
         </main>
       </div>
