@@ -6,6 +6,25 @@ from fastapi import HTTPException, status
 
 BASE_FARE = 100.0
 RATE_PER_KM = 5.0
+SHORT_JOURNEY_MULTIPLIER = 1.0
+MEDIUM_JOURNEY_MULTIPLIER = 1.12
+LONG_JOURNEY_MULTIPLIER = 1.25
+PEAK_MULTIPLIER = 1.08
+
+def _journey_multiplier(distance_km: float) -> float:
+    if distance_km <= 50:
+        return SHORT_JOURNEY_MULTIPLIER
+    if distance_km <= 150:
+        return MEDIUM_JOURNEY_MULTIPLIER
+    return LONG_JOURNEY_MULTIPLIER
+
+def _peak_multiplier() -> float:
+    now = datetime.now()
+    if now.weekday() >= 5:
+        return PEAK_MULTIPLIER
+    if 7 <= now.hour < 9 or 16 <= now.hour < 19:
+        return PEAK_MULTIPLIER
+    return 1.0
 
 def check_overlap(orig_a_idx: int, dest_a_idx: int, orig_b_idx: int, dest_b_idx: int) -> bool:
     start_a, end_a = sorted([orig_a_idx, dest_a_idx])
@@ -47,5 +66,7 @@ def calculate_fare(db: Session, origin_id: int, dest_id: int) -> float:
     
     distance = abs(dest.distance_km - orig.distance_km)
     distance_charge = distance * RATE_PER_KM
-    fare = BASE_FARE + distance_charge
+    journey_multiplier = _journey_multiplier(distance)
+    peak_multiplier = _peak_multiplier()
+    fare = (BASE_FARE + distance_charge) * journey_multiplier * peak_multiplier
     return round(fare, 2)
