@@ -148,3 +148,63 @@ def create_booking(db: Session, req):
     except Exception as e:
         db.rollback()
         raise e
+
+def create_waitlist_entry(db: Session, req):
+    try:
+        orig = db.query(Station).filter(Station.id == req.origin_station_id).first()
+        dest = db.query(Station).filter(Station.id == req.destination_station_id).first()
+        if not orig or not dest or orig.id == dest.id:
+            raise HTTPException(status_code=400, detail="Invalid journey segment")
+
+        existing_availability = get_seats_availability(db, req.origin_station_id, req.destination_station_id, req.travel_date)
+        if any(seat["is_available"] for seat in existing_availability):
+            raise HTTPException(status_code=400, detail="Seats are still available for this segment; book directly instead")
+
+        duplicate = (
+            db.query(WaitlistEntry)
+            .filter(
+                WaitlistEntry.origin_station_id == req.origin_station_id,
+                WaitlistEntry.destination_station_id == req.destination_station_id,
+                WaitlistEntry.travel_date == req.travel_date,
+                WaitlistEntry.passenger_name == req.passenger_name,
+                WaitlistEntry.fulfilled_at.is_(None),
+            )
+            .first()
+        )
+        if duplicate:
+            raise HTTPException(status_code=409, detail="Passenger is already waitlisted for this segment")
+
+        queue_position = (
+            db.query(func.count(WaitlistEntry.id))
+            .filter(
+                WaitlistEntry.origin_station_id == req.origin_station_id,
+                WaitlistEntry.destination_station_id == req.destination_station_id,
+                WaitlistEntry.travel_date == req.travel_date,
+                WaitlistEntry.fulfilled_at.is_(None),
+            )
+            .scalar()
+            or 0
+        ) + 1
+
+        entry = WaitlistEntry(
+            origin_station_id=req.origin_station_id,
+            destination_station_id=req.destination_station_id,
+            travel_date=req.travel_date,
+            passenger_name=req.passenger_name,
+        )
+        db.add(entry)
+        db.commit()
+        db.refresh(entry)
+
+        return {
+            "waitlist_id": entry.id,
+            "passenger_name": entry.passenger_name,
+            "origin": orig.name,
+            "destination": dest.name,
+            "travel_date": entry.travel_date,
+            "queue_position": queue_position,
+            "created_at": entry.created_at,
+        }
+    except Exception as e:
+        db.rollback()
+        raise e

@@ -52,3 +52,7 @@ def get_fare(origin_id: int, destination_id: int, db: Session = Depends(get_db))
 @app.post("/api/v1/bookings", response_model=schemas.BookingResponse)
 def create_booking(req: schemas.BookingRequest, db: Session = Depends(get_db)):
     return crud.create_booking(db, req)
+
+@app.post("/api/v1/waitlist", response_model=schemas.WaitlistResponse)
+def create_waitlist(req: schemas.WaitlistRequest, db: Session = Depends(get_db)):
+    return crud.create_waitlist_entry(db, req)

@@ -34,3 +34,21 @@ class BookingResponse(BaseModel):
     travel_date: date
     fare: float
     passenger_name: str
+
+
+class WaitlistRequest(BaseModel):
+    origin_station_id: int
+    destination_station_id: int
+    travel_date: date
+    passenger_name: str
+
+
+class WaitlistResponse(BaseModel):
+    waitlist_id: int
+    passenger_name: str
+    origin: str
+    destination: str
+    travel_date: date
+    queue_position: int
+    created_at: datetime
+
