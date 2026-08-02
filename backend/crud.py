@@ -4,6 +4,9 @@ from sqlalchemy import select, func, or_
 from models import Station, Coach, Seat, BookingSegment, WaitlistEntry
 from fastapi import HTTPException, status
 
+BASE_FARE = 100.0
+RATE_PER_KM = 5.0
+
 def check_overlap(orig_a_idx: int, dest_a_idx: int, orig_b_idx: int, dest_b_idx: int) -> bool:
     start_a, end_a = sorted([orig_a_idx, dest_a_idx])
     start_b, end_b = sorted([orig_b_idx, dest_b_idx])
@@ -35,3 +38,14 @@ def get_seats_availability(db: Session, origin_id: int, dest_id: int, travel_dat
             "is_available": seat.id not in booked_seat_ids
         })
     return results
+
+def calculate_fare(db: Session, origin_id: int, dest_id: int) -> float:
+    orig = db.query(Station).filter(Station.id == origin_id).first()
+    dest = db.query(Station).filter(Station.id == dest_id).first()
+    if not orig or not dest:
+        raise HTTPException(status_code=400, detail="Invalid origin or destination station")
+    
+    distance = abs(dest.distance_km - orig.distance_km)
+    distance_charge = distance * RATE_PER_KM
+    fare = BASE_FARE + distance_charge
+    return round(fare, 2)
