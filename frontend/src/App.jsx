@@ -28,6 +28,7 @@ export default function App() {
   const [message, setMessage] = useState({ text: "", type: "" });
   const [recentBookings, setRecentBookings] = useState([]);
   const [recentWaitlist, setRecentWaitlist] = useState([]);
+  const [bookingSearch, setBookingSearch] = useState("");
   const [recentBookingsLimit, setRecentBookingsLimit] = useState(6);
   const [expandedBookingId, setExpandedBookingId] = useState(null);
   const [waitlistPassengerName, setWaitlistPassengerName] = useState("");
@@ -418,6 +419,42 @@ export default function App() {
   };
 
   const availableSeatCount = seats.filter((seat) => seat.is_available).length;
+
+  const filteredRecentBookings = useMemo(() => {
+    const query = bookingSearch.trim().toLowerCase();
+    if (!query) return recentBookings;
+
+    return recentBookings.filter((booking) => {
+      const haystack = [
+        booking.passenger_name,
+        booking.origin,
+        booking.destination,
+        booking.travel_date,
+        booking.coach_number,
+        String(booking.seat_number),
+        String(booking.fare),
+      ]
+        .join(" ")
+        .toLowerCase();
+
+      return haystack.includes(query);
+    });
+  }, [bookingSearch, recentBookings]);
+
+  const bookingSummary = useMemo(() => {
+    const totalBookings = filteredRecentBookings.length;
+    const totalRevenue = filteredRecentBookings.reduce(
+      (sum, booking) => sum + Number(booking.fare || 0),
+      0,
+    );
+    const averageFare = totalBookings > 0 ? totalRevenue / totalBookings : 0;
+
+    return {
+      totalBookings,
+      totalRevenue,
+      averageFare,
+    };
+  }, [filteredRecentBookings]);
 
   const journeySummary =
     originStation && destinationStation
@@ -967,13 +1004,53 @@ export default function App() {
                 </div>
               </div>
 
+              <div className="mt-5">
+                <label className="mb-2 block text-sm font-medium text-slate-700">
+                  Search bookings
+                </label>
+                <input
+                  type="text"
+                  value={bookingSearch}
+                  onChange={(e) => setBookingSearch(e.target.value)}
+                  placeholder="Passenger, route, coach, or seat"
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 outline-none transition focus:border-emerald-500 focus:bg-white"
+                />
+              </div>
+
+              <div className="mt-4 grid grid-cols-3 gap-3">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                  <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400">
+                    Visible
+                  </div>
+                  <div className="mt-1 text-lg font-semibold text-slate-900">
+                    {bookingSummary.totalBookings}
+                  </div>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                  <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400">
+                    Revenue
+                  </div>
+                  <div className="mt-1 text-lg font-semibold text-slate-900">
+                    LKR {bookingSummary.totalRevenue.toFixed(0)}
+                  </div>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                  <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400">
+                    Avg fare
+                  </div>
+                  <div className="mt-1 text-lg font-semibold text-slate-900">
+                    LKR {bookingSummary.averageFare.toFixed(0)}
+                  </div>
+                </div>
+              </div>
+
               <div className="mt-6 space-y-4">
                 {isLoadingBookings ? (
                   <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-500">
                     Loading booking history...
                   </div>
-                ) : recentBookings.length > 0 ? (
-                  recentBookings.map((booking) => (
+                ) : filteredRecentBookings.length > 0 ? (
+                  filteredRecentBookings.map((booking) => (
                     <div
                       key={booking.booking_id}
                       className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
@@ -1061,7 +1138,9 @@ export default function App() {
                   ))
                 ) : (
                   <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-500">
-                    No bookings yet. The first reservation will appear here.
+                    {bookingSearch.trim()
+                      ? "No bookings match that search."
+                      : "No bookings yet. The first reservation will appear here."}
                   </div>
                 )}
               </div>
