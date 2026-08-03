@@ -29,6 +29,7 @@ export default function App() {
   const [recentBookings, setRecentBookings] = useState([]);
   const [recentWaitlist, setRecentWaitlist] = useState([]);
   const [bookingSearch, setBookingSearch] = useState("");
+  const [bookingSort, setBookingSort] = useState("newest");
   const [recentBookingsLimit, setRecentBookingsLimit] = useState(6);
   const [expandedBookingId, setExpandedBookingId] = useState(null);
   const [waitlistPassengerName, setWaitlistPassengerName] = useState("");
@@ -290,6 +291,13 @@ export default function App() {
     setRecentBookingsLimit((currentLimit) => currentLimit + 6);
   };
 
+  const resetRecentBookingsView = () => {
+    setBookingSearch("");
+    setBookingSort("newest");
+    setExpandedBookingId(null);
+    setRecentBookingsLimit(6);
+  };
+
   const fetchAvailabilityAndFare = async () => {
     if (!origin || !destination || origin === destination || !travelDate) {
       setMessage({
@@ -441,9 +449,29 @@ export default function App() {
     });
   }, [bookingSearch, recentBookings]);
 
+  const sortedRecentBookings = useMemo(() => {
+    const bookings = [...filteredRecentBookings];
+
+    switch (bookingSort) {
+      case "oldest":
+        return bookings.sort(
+          (a, b) => new Date(a.created_at) - new Date(b.created_at),
+        );
+      case "fare-high":
+        return bookings.sort((a, b) => b.fare - a.fare);
+      case "fare-low":
+        return bookings.sort((a, b) => a.fare - b.fare);
+      case "newest":
+      default:
+        return bookings.sort(
+          (a, b) => new Date(b.created_at) - new Date(a.created_at),
+        );
+    }
+  }, [bookingSort, filteredRecentBookings]);
+
   const bookingSummary = useMemo(() => {
-    const totalBookings = filteredRecentBookings.length;
-    const totalRevenue = filteredRecentBookings.reduce(
+    const totalBookings = sortedRecentBookings.length;
+    const totalRevenue = sortedRecentBookings.reduce(
       (sum, booking) => sum + Number(booking.fare || 0),
       0,
     );
@@ -454,7 +482,7 @@ export default function App() {
       totalRevenue,
       averageFare,
     };
-  }, [filteredRecentBookings]);
+  }, [sortedRecentBookings]);
 
   const journeySummary =
     originStation && destinationStation
@@ -1044,13 +1072,37 @@ export default function App() {
                 </div>
               </div>
 
+              <div className="mt-4">
+                <label className="mb-2 block text-sm font-medium text-slate-700">
+                  Sort by
+                </label>
+                <select
+                  value={bookingSort}
+                  onChange={(e) => setBookingSort(e.target.value)}
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 outline-none transition focus:border-emerald-500 focus:bg-white"
+                >
+                  <option value="newest">Newest first</option>
+                  <option value="oldest">Oldest first</option>
+                  <option value="fare-high">Fare high to low</option>
+                  <option value="fare-low">Fare low to high</option>
+                </select>
+              </div>
+
+              <button
+                type="button"
+                onClick={resetRecentBookingsView}
+                className="mt-4 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+              >
+                Reset booking view
+              </button>
+
               <div className="mt-6 space-y-4">
                 {isLoadingBookings ? (
                   <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-500">
                     Loading booking history...
                   </div>
-                ) : filteredRecentBookings.length > 0 ? (
-                  filteredRecentBookings.map((booking) => (
+                ) : sortedRecentBookings.length > 0 ? (
+                  sortedRecentBookings.map((booking) => (
                     <div
                       key={booking.booking_id}
                       className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
