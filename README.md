@@ -13,6 +13,8 @@ Built with **FastAPI**, **SQLAlchemy**, **PostgreSQL**, **React (Vite)**, and **
 The project is designed to start with a single command:
 
 ```bash
+cp .env.example .env   
+
 docker-compose up --build
 ```
 

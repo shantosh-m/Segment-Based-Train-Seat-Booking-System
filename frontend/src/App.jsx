@@ -438,7 +438,6 @@ export default function App() {
       setIsWaitlisting(false);
     }
   };
-
   const handleCancelBooking = async (bookingId) => {
     const booking = recentBookings.find(
       (item) => item.booking_id === bookingId,
@@ -451,8 +450,17 @@ export default function App() {
     if (!confirmed) return;
 
     setCancelingBookingId(bookingId);
+
+    // Fallback check to ensure token is active
+    const activeCode =
+      staffAccessCode || sessionStorage.getItem("staff_access_code") || "";
+
     try {
-      await axios.delete(`${API_BASE}/bookings/${bookingId}`);
+      await axios.delete(`${API_BASE}/bookings/${bookingId}`, {
+        headers: {
+          "X-Staff-Access": activeCode,
+        },
+      });
       setMessage({
         text: `Cancelled booking for ${booking.passenger_name}.`,
         type: "success",
