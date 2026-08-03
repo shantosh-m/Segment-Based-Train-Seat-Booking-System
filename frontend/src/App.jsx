@@ -29,7 +29,9 @@ export default function App() {
   const [isLoadingStations, setIsLoadingStations] = useState(true);
   const [isLoadingAvailability, setIsLoadingAvailability] = useState(false);
   const [isBooking, setIsBooking] = useState(false);
-  const [staffAccessCode, setStaffAccessCode] = useState("");
+  const [staffAccessCode, setStaffAccessCode] = useState(
+    () => sessionStorage.getItem("staff_access_code") || "",
+  );
   const [staffLoginInput, setStaffLoginInput] = useState("");
   const [staffLoginError, setStaffLoginError] = useState("");
 
@@ -39,6 +41,12 @@ export default function App() {
     () => seats.find((seat) => seat.seat_id === selectedSeat),
     [seats, selectedSeat],
   );
+
+  const getStaffRequestConfig = () => ({
+    headers: {
+      "X-Staff-Access": staffAccessCode,
+    },
+  });
 
   useEffect(() => {
     const today = new Date().toISOString().slice(0, 10);
@@ -74,6 +82,40 @@ export default function App() {
       isMounted = false;
     };
   }, []);
+
+  const handleStaffLogin = async () => {
+    const trimmedCode = staffLoginInput.trim();
+
+    if (!trimmedCode) {
+      setStaffLoginError("Enter the staff access code.");
+      return;
+    }
+
+    try {
+      await axios.get(`${API_BASE}/admin/summary`, {
+        headers: {
+          "X-Staff-Access": trimmedCode,
+        },
+      });
+      sessionStorage.setItem("staff_access_code", trimmedCode);
+      setStaffAccessCode(trimmedCode);
+      setStaffLoginInput("");
+      setStaffLoginError("");
+      setMessage({ text: "Staff access enabled.", type: "success" });
+    } catch (err) {
+      setStaffLoginError(
+        err.response?.data?.detail || "Invalid staff access code.",
+      );
+    }
+  };
+
+  const handleStaffLogout = () => {
+    sessionStorage.removeItem("staff_access_code");
+    setStaffAccessCode("");
+    setStaffLoginInput("");
+    setStaffLoginError("");
+    setMessage({ text: "Staff access disabled.", type: "success" });
+  };
 
   const handleSwapRoute = () => {
     if (!origin || !destination) return;
@@ -154,23 +196,6 @@ export default function App() {
     } finally {
       setIsBooking(false);
     }
-  };
-
-  const handleStaffLogin = () => {
-    const trimmedCode = staffLoginInput.trim();
-    if (!trimmedCode) {
-      setStaffLoginError("Enter the staff access code.");
-      return;
-    }
-    setStaffAccessCode(trimmedCode);
-    setStaffLoginInput("");
-    setStaffLoginError("");
-  };
-
-  const handleStaffLogout = () => {
-    setStaffAccessCode("");
-    setStaffLoginInput("");
-    setStaffLoginError("");
   };
 
   return (
