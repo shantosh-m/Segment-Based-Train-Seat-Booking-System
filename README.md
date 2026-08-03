@@ -38,7 +38,7 @@ The same variables are available in `.env.example` for local overrides.
 - The same code is used in the frontend staff login card and the backend API guard.
 
 
-📐 Core Architecture & Design Decisions
+### 📐 Core Architecture & Design Decisions
 
 ## Concurrency Safety: Pessimistic Row-Level Locking (FOR UPDATE)
 
@@ -51,7 +51,7 @@ By acquiring SELECT ... FOR UPDATE on the requested Seat row at the start of the
 Fares are computed dynamically based on linear track distance (d), journey distance tiering, and time-based peak factors:
 
 
-🌟 Extra Credit Features Built
+### 🌟 Extra Credit Features Built
 
 ## Automated FIFO Waitlist Engine:
 
