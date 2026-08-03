@@ -26,9 +26,13 @@ export default function App() {
   const [fare, setFare] = useState(null);
   const [fareBreakdown, setFareBreakdown] = useState(null);
   const [message, setMessage] = useState({ text: "", type: "" });
+  const [recentBookings, setRecentBookings] = useState([]);
   const [recentWaitlist, setRecentWaitlist] = useState([]);
+  const [recentBookingsLimit, setRecentBookingsLimit] = useState(6);
+  const [expandedBookingId, setExpandedBookingId] = useState(null);
   const [waitlistPassengerName, setWaitlistPassengerName] = useState("");
   const [isLoadingStations, setIsLoadingStations] = useState(true);
+  const [isLoadingBookings, setIsLoadingBookings] = useState(true);
   const [isLoadingWaitlist, setIsLoadingWaitlist] = useState(true);
   const [adminSummary, setAdminSummary] = useState(null);
   const [isLoadingAdmin, setIsLoadingAdmin] = useState(true);
@@ -137,6 +141,42 @@ export default function App() {
     let isMounted = true;
 
     if (!isStaffAuthenticated) {
+      setRecentBookings([]);
+      setIsLoadingBookings(false);
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    setIsLoadingBookings(true);
+    axios
+      .get(
+        `${API_BASE}/bookings/recent?limit=${recentBookingsLimit}`,
+        getStaffRequestConfig(),
+      )
+      .then((res) => {
+        if (isMounted) {
+          setRecentBookings(res.data);
+        }
+      })
+      .catch((err) => {
+        console.error(err);
+      })
+      .finally(() => {
+        if (isMounted) {
+          setIsLoadingBookings(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isStaffAuthenticated, recentBookingsLimit, staffAccessCode]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    if (!isStaffAuthenticated) {
       setRecentWaitlist([]);
       setIsLoadingWaitlist(false);
       return () => {
@@ -165,6 +205,20 @@ export default function App() {
       isMounted = false;
     };
   }, [isStaffAuthenticated, staffAccessCode]);
+
+  const refreshRecentBookings = async () => {
+    if (!isStaffAuthenticated) return;
+    setIsLoadingBookings(true);
+    try {
+      const refreshedBookings = await axios.get(
+        `${API_BASE}/bookings/recent?limit=${recentBookingsLimit}`,
+        getStaffRequestConfig(),
+      );
+      setRecentBookings(refreshedBookings.data);
+    } finally {
+      setIsLoadingBookings(false);
+    }
+  };
 
   const refreshRecentWaitlist = async () => {
     if (!isStaffAuthenticated) return;
@@ -222,10 +276,17 @@ export default function App() {
     setStaffLoginInput("");
     setStaffLoginError("");
     setAdminSummary(null);
+    setRecentBookings([]);
     setRecentWaitlist([]);
+    setExpandedBookingId(null);
     setIsLoadingAdmin(false);
+    setIsLoadingBookings(false);
     setIsLoadingWaitlist(false);
     setMessage({ text: "Staff access disabled.", type: "success" });
+  };
+
+  const loadMoreRecentBookings = async () => {
+    setRecentBookingsLimit((currentLimit) => currentLimit + 6);
   };
 
   const fetchAvailabilityAndFare = async () => {
@@ -298,6 +359,8 @@ export default function App() {
       });
       setPassengerName("");
       setWaitlistPassengerName("");
+      setExpandedBookingId(res.data.booking_id);
+      await refreshRecentBookings();
       await fetchAvailabilityAndFare();
       await refreshAdminSummary();
     } catch (err) {
@@ -883,6 +946,134 @@ export default function App() {
                   </div>
                 )}
               </div>
+            </section>
+
+            <section
+              className={
+                isStaffAuthenticated
+                  ? "rounded-[2rem] border border-slate-200/80 bg-white/85 p-6 shadow-xl shadow-slate-900/5 backdrop-blur sm:p-8"
+                  : "hidden"
+              }
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-xl font-semibold text-slate-900">
+                    Recent bookings
+                  </h2>
+                  <p className="mt-2 text-sm leading-6 text-slate-500">
+                    A quick audit trail of the latest reservations made through
+                    the system.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-6 space-y-4">
+                {isLoadingBookings ? (
+                  <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-500">
+                    Loading booking history...
+                  </div>
+                ) : recentBookings.length > 0 ? (
+                  recentBookings.map((booking) => (
+                    <div
+                      key={booking.booking_id}
+                      className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                    >
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setExpandedBookingId(
+                            expandedBookingId === booking.booking_id
+                              ? null
+                              : booking.booking_id,
+                          )
+                        }
+                        className="w-full text-left"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <div className="text-sm font-semibold text-slate-900">
+                              {booking.passenger_name}
+                            </div>
+                            <div className="mt-1 text-sm text-slate-500">
+                              {booking.origin} to {booking.destination}
+                            </div>
+                          </div>
+                          <div className="text-right text-sm text-slate-500">
+                            <div className="font-semibold text-slate-900">
+                              {booking.coach_number}-{booking.seat_number}
+                            </div>
+                            <div>LKR {booking.fare}</div>
+                          </div>
+                        </div>
+                      </button>
+
+                      {expandedBookingId === booking.booking_id && (
+                        <div className="mt-4 grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-600 sm:grid-cols-2">
+                          <div>
+                            <div className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                              Passenger
+                            </div>
+                            <div className="mt-1 font-medium text-slate-900">
+                              {booking.passenger_name}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                              Route
+                            </div>
+                            <div className="mt-1 font-medium text-slate-900">
+                              {booking.origin} to {booking.destination}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                              Coach / Seat
+                            </div>
+                            <div className="mt-1 font-medium text-slate-900">
+                              {booking.coach_number}-{booking.seat_number}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                              Fare
+                            </div>
+                            <div className="mt-1 font-medium text-slate-900">
+                              LKR {booking.fare}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                              Travel date
+                            </div>
+                            <div className="mt-1 font-medium text-slate-900">
+                              {booking.travel_date}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="mt-4 flex items-center justify-between gap-3">
+                        <div className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                          {new Date(booking.created_at).toLocaleString()}
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-500">
+                    No bookings yet. The first reservation will appear here.
+                  </div>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={loadMoreRecentBookings}
+                disabled={isLoadingBookings}
+                className="mt-4 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-white"
+              >
+                {isLoadingBookings ? "Loading..." : "Load more bookings"}
+              </button>
             </section>
 
             {fareBreakdown && (
