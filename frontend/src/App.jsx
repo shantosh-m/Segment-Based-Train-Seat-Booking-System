@@ -26,6 +26,8 @@ export default function App() {
   const [fare, setFare] = useState(null);
   const [fareBreakdown, setFareBreakdown] = useState(null);
   const [message, setMessage] = useState({ text: "", type: "" });
+  const [recentWaitlist, setRecentWaitlist] = useState([]);
+  const [isLoadingWaitlist, setIsLoadingWaitlist] = useState(true);
   const [waitlistPassengerName, setWaitlistPassengerName] = useState("");
   const [isWaitlisting, setIsWaitlisting] = useState(false);
   const [isLoadingStations, setIsLoadingStations] = useState(true);
@@ -84,6 +86,30 @@ export default function App() {
       isMounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    if (!isStaffAuthenticated) {
+      setRecentWaitlist([]);
+      setIsLoadingWaitlist(false);
+      return;
+    }
+
+    setIsLoadingWaitlist(true);
+    axios
+      .get(`${API_BASE}/waitlist/recent?limit=6`, getStaffRequestConfig())
+      .then((res) => {
+        if (isMounted) setRecentWaitlist(res.data);
+      })
+      .finally(() => {
+        if (isMounted) setIsLoadingWaitlist(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isStaffAuthenticated, staffAccessCode]);
 
   const handleStaffLogin = async () => {
     const trimmedCode = staffLoginInput.trim();
@@ -584,6 +610,27 @@ export default function App() {
                 {isWaitlisting ? "Joining..." : "Join waitlist"}
               </button>
             </div>
+
+            <div className={isStaffAuthenticated ? "mt-6 space-y-3" : "hidden"}>
+              {isLoadingWaitlist ? (
+                <div className="text-sm text-slate-500">Loading waitlist...</div>
+              ) : recentWaitlist.length > 0 ? (
+                recentWaitlist.map((entry) => (
+                  <div key={entry.waitlist_id} className="rounded-2xl border p-4 bg-white">
+                    <div className="flex justify-between">
+                      <div>
+                        <div className="font-semibold">{entry.passenger_name}</div>
+                        <div className="text-sm text-slate-500">{entry.origin} to {entry.destination}</div>
+                      </div>
+                      <div className="font-semibold text-slate-900">Queue #{entry.queue_position}</div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-sm text-slate-500">No active waitlist entries yet.</div>
+              )}
+            </div>
+
           </section>
 
           <aside className="space-y-6">
