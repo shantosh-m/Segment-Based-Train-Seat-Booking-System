@@ -210,7 +210,10 @@ export default function App() {
   }, [isStaffAuthenticated, staffAccessCode]);
 
   const refreshRecentBookings = async () => {
-    if (!isStaffAuthenticated) return;
+    if (!isStaffAuthenticated) {
+      return;
+    }
+
     setIsLoadingBookings(true);
     try {
       const refreshedBookings = await axios.get(
@@ -224,7 +227,10 @@ export default function App() {
   };
 
   const refreshRecentWaitlist = async () => {
-    if (!isStaffAuthenticated) return;
+    if (!isStaffAuthenticated) {
+      return;
+    }
+
     setIsLoadingWaitlist(true);
     try {
       const refreshedWaitlist = await axios.get(
@@ -238,7 +244,10 @@ export default function App() {
   };
 
   const refreshAdminSummary = async () => {
-    if (!isStaffAuthenticated) return;
+    if (!isStaffAuthenticated) {
+      return;
+    }
+
     try {
       const refreshedSummary = await axios.get(
         `${API_BASE}/admin/summary`,
@@ -252,6 +261,7 @@ export default function App() {
 
   const handleStaffLogin = async () => {
     const trimmedCode = staffLoginInput.trim();
+
     if (!trimmedCode) {
       setStaffLoginError("Enter the staff access code.");
       return;
@@ -259,7 +269,9 @@ export default function App() {
 
     try {
       await axios.get(`${API_BASE}/admin/summary`, {
-        headers: { "X-Staff-Access": trimmedCode },
+        headers: {
+          "X-Staff-Access": trimmedCode,
+        },
       });
       sessionStorage.setItem("staff_access_code", trimmedCode);
       setStaffAccessCode(trimmedCode);
@@ -440,10 +452,7 @@ export default function App() {
 
     setCancelingBookingId(bookingId);
     try {
-      await axios.delete(
-        `${API_BASE}/bookings/${bookingId}`,
-        getStaffRequestConfig(),
-      );
+      await axios.delete(`${API_BASE}/bookings/${bookingId}`);
       setMessage({
         text: `Cancelled booking for ${booking.passenger_name}.`,
         type: "success",
@@ -468,7 +477,6 @@ export default function App() {
   };
 
   const availableSeatCount = seats.filter((seat) => seat.is_available).length;
-
   const filteredRecentBookings = useMemo(() => {
     const query = bookingSearch.trim().toLowerCase();
     if (!query) return recentBookings;
