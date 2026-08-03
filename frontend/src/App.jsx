@@ -525,6 +525,55 @@ export default function App() {
     };
   }, [sortedRecentBookings]);
 
+  const exportRecentBookingsCsv = () => {
+    const rows = [
+      [
+        "booking_id",
+        "passenger_name",
+        "origin",
+        "destination",
+        "travel_date",
+        "coach_number",
+        "seat_number",
+        "fare",
+        "created_at",
+      ],
+      ...sortedRecentBookings.map((booking) => [
+        booking.booking_id,
+        booking.passenger_name,
+        booking.origin,
+        booking.destination,
+        booking.travel_date,
+        booking.coach_number,
+        booking.seat_number,
+        booking.fare,
+        booking.created_at,
+      ]),
+    ];
+
+    const csv = rows
+      .map((row) =>
+        row
+          .map((value) => {
+            const text = String(value ?? "");
+            const escaped = text.replace(/"/g, '""');
+            return `"${escaped}"`;
+          })
+          .join(","),
+      )
+      .join("\n");
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const downloadUrl = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = downloadUrl;
+    link.download = `recent-bookings-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(downloadUrl);
+  };
+
   const journeySummary =
     originStation && destinationStation
       ? `${originStation.name} to ${destinationStation.name}`
@@ -1071,6 +1120,14 @@ export default function App() {
                     the system.
                   </p>
                 </div>
+                <button
+                  type="button"
+                  onClick={exportRecentBookingsCsv}
+                  disabled={sortedRecentBookings.length === 0}
+                  className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Export CSV
+                </button>
               </div>
 
               <div className="mt-5">
