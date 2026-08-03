@@ -41,6 +41,7 @@ export default function App() {
   const [isLoadingAvailability, setIsLoadingAvailability] = useState(false);
   const [isBooking, setIsBooking] = useState(false);
   const [isWaitlisting, setIsWaitlisting] = useState(false);
+  const [cancelingBookingId, setCancelingBookingId] = useState(null);
   const [staffAccessCode, setStaffAccessCode] = useState(
     () => sessionStorage.getItem("staff_access_code") || "",
   );
@@ -423,6 +424,46 @@ export default function App() {
       });
     } finally {
       setIsWaitlisting(false);
+    }
+  };
+
+  const handleCancelBooking = async (bookingId) => {
+    const booking = recentBookings.find(
+      (item) => item.booking_id === bookingId,
+    );
+    if (!booking) return;
+
+    const confirmed = window.confirm(
+      `Cancel booking for ${booking.passenger_name} (${booking.coach_number}-${booking.seat_number})?`,
+    );
+    if (!confirmed) return;
+
+    setCancelingBookingId(bookingId);
+    try {
+      await axios.delete(
+        `${API_BASE}/bookings/${bookingId}`,
+        getStaffRequestConfig(),
+      );
+      setMessage({
+        text: `Cancelled booking for ${booking.passenger_name}.`,
+        type: "success",
+      });
+      if (expandedBookingId === bookingId) {
+        setExpandedBookingId(null);
+      }
+      await refreshRecentBookings();
+      await refreshRecentWaitlist();
+      if (origin && destination && origin !== destination) {
+        await fetchAvailabilityAndFare();
+      }
+      await refreshAdminSummary();
+    } catch (err) {
+      setMessage({
+        text: err.response?.data?.detail || "Cancellation failed.",
+        type: "error",
+      });
+    } finally {
+      setCancelingBookingId(null);
     }
   };
 
@@ -1185,6 +1226,18 @@ export default function App() {
                         <div className="text-xs uppercase tracking-[0.2em] text-slate-400">
                           {new Date(booking.created_at).toLocaleString()}
                         </div>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleCancelBooking(booking.booking_id)
+                          }
+                          disabled={cancelingBookingId === booking.booking_id}
+                          className="rounded-full border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-700 transition hover:border-red-300 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {cancelingBookingId === booking.booking_id
+                            ? "Cancelling..."
+                            : "Cancel"}
+                        </button>
                       </div>
                     </div>
                   ))
