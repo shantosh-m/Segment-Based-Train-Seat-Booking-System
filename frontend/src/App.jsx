@@ -26,6 +26,8 @@ export default function App() {
   const [fare, setFare] = useState(null);
   const [fareBreakdown, setFareBreakdown] = useState(null);
   const [message, setMessage] = useState({ text: "", type: "" });
+  const [waitlistPassengerName, setWaitlistPassengerName] = useState("");
+  const [isWaitlisting, setIsWaitlisting] = useState(false);
   const [isLoadingStations, setIsLoadingStations] = useState(true);
   const [isLoadingAvailability, setIsLoadingAvailability] = useState(false);
   const [isBooking, setIsBooking] = useState(false);
@@ -197,6 +199,46 @@ export default function App() {
       setIsBooking(false);
     }
   };
+
+  const handleJoinWaitlist = async () => {
+  if (!waitlistPassengerName.trim()) {
+    setMessage({
+      text: "Enter a passenger name before joining the waitlist.",
+      type: "error",
+    });
+    return;
+  }
+
+  if (!origin || !destination || origin === destination || !travelDate) {
+    setMessage({
+      text: "Select a valid route and travel date before joining the waitlist.",
+      type: "error",
+    });
+    return;
+  }
+
+  setIsWaitlisting(true);
+  try {
+    const res = await axios.post(`${API_BASE}/waitlist`, {
+      origin_station_id: parseInt(origin),
+      destination_station_id: parseInt(destination),
+      travel_date: travelDate,
+      passenger_name: waitlistPassengerName,
+    });
+    setMessage({
+      text: `Added ${res.data.passenger_name} to the waitlist for ${res.data.origin} to ${res.data.destination} (queue #${res.data.queue_position}).`,
+      type: "success",
+    });
+    setWaitlistPassengerName("");
+  } catch (err) {
+    setMessage({
+      text: err.response?.data?.detail || "Unable to join the waitlist.",
+      type: "error",
+    });
+  } finally {
+    setIsWaitlisting(false);
+  }
+};
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(34,197,94,0.16),_transparent_38%),linear-gradient(180deg,#f8fafc_0%,#eff6ff_100%)] px-4 py-6 text-slate-900 sm:px-6 lg:px-8">
@@ -511,6 +553,37 @@ export default function App() {
                 Select a route and load seat availability to continue.
               </div>
             )}
+          </section>
+
+          <section className="rounded-[2rem] border border-slate-200/80 bg-white/85 p-6 shadow-xl shadow-slate-900/5 backdrop-blur sm:p-8">
+            <h2 className="text-xl font-semibold text-slate-900">Waitlist</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-500">
+              Join a queue when a segment is fully booked.
+            </p>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto]">
+              <input
+                type="text"
+                value={waitlistPassengerName}
+                onChange={(e) => setWaitlistPassengerName(e.target.value)}
+                placeholder="Passenger name for waitlist"
+                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 outline-none transition focus:border-emerald-500 focus:bg-white"
+              />
+              <button
+                type="button"
+                onClick={handleJoinWaitlist}
+                disabled={
+                  isWaitlisting ||
+                  !origin ||
+                  !destination ||
+                  origin === destination ||
+                  !travelDate
+                }
+                className="inline-flex items-center justify-center rounded-2xl bg-amber-500 px-5 py-3 font-semibold text-white transition hover:bg-amber-600 disabled:cursor-not-allowed disabled:bg-amber-300"
+              >
+                {isWaitlisting ? "Joining..." : "Join waitlist"}
+              </button>
+            </div>
           </section>
 
           <aside className="space-y-6">
