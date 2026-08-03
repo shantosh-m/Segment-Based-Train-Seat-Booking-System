@@ -27,12 +27,14 @@ export default function App() {
   const [fareBreakdown, setFareBreakdown] = useState(null);
   const [message, setMessage] = useState({ text: "", type: "" });
   const [recentWaitlist, setRecentWaitlist] = useState([]);
-  const [isLoadingWaitlist, setIsLoadingWaitlist] = useState(true);
   const [waitlistPassengerName, setWaitlistPassengerName] = useState("");
-  const [isWaitlisting, setIsWaitlisting] = useState(false);
   const [isLoadingStations, setIsLoadingStations] = useState(true);
+  const [isLoadingWaitlist, setIsLoadingWaitlist] = useState(true);
+  const [adminSummary, setAdminSummary] = useState(null);
+  const [isLoadingAdmin, setIsLoadingAdmin] = useState(true);
   const [isLoadingAvailability, setIsLoadingAvailability] = useState(false);
   const [isBooking, setIsBooking] = useState(false);
+  const [isWaitlisting, setIsWaitlisting] = useState(false);
   const [staffAccessCode, setStaffAccessCode] = useState(
     () => sessionStorage.getItem("staff_access_code") || "",
   );
@@ -40,6 +42,17 @@ export default function App() {
   const [staffLoginError, setStaffLoginError] = useState("");
 
   const isStaffAuthenticated = Boolean(staffAccessCode);
+
+  const originStation = useMemo(
+    () => stations.find((station) => String(station.id) === String(origin)),
+    [stations, origin],
+  );
+
+  const destinationStation = useMemo(
+    () =>
+      stations.find((station) => String(station.id) === String(destination)),
+    [stations, destination],
+  );
 
   const selectedSeatDetails = useMemo(
     () => seats.find((seat) => seat.seat_id === selectedSeat),
@@ -91,19 +104,28 @@ export default function App() {
     let isMounted = true;
 
     if (!isStaffAuthenticated) {
-      setRecentWaitlist([]);
-      setIsLoadingWaitlist(false);
-      return;
+      setAdminSummary(null);
+      setIsLoadingAdmin(false);
+      return () => {
+        isMounted = false;
+      };
     }
 
-    setIsLoadingWaitlist(true);
+    setIsLoadingAdmin(true);
     axios
-      .get(`${API_BASE}/waitlist/recent?limit=6`, getStaffRequestConfig())
+      .get(`${API_BASE}/admin/summary`, getStaffRequestConfig())
       .then((res) => {
-        if (isMounted) setRecentWaitlist(res.data);
+        if (isMounted) {
+          setAdminSummary(res.data);
+        }
+      })
+      .catch((err) => {
+        console.error(err);
       })
       .finally(() => {
-        if (isMounted) setIsLoadingWaitlist(false);
+        if (isMounted) {
+          setIsLoadingAdmin(false);
+        }
       });
 
     return () => {
@@ -111,9 +133,68 @@ export default function App() {
     };
   }, [isStaffAuthenticated, staffAccessCode]);
 
+  useEffect(() => {
+    let isMounted = true;
+
+    if (!isStaffAuthenticated) {
+      setRecentWaitlist([]);
+      setIsLoadingWaitlist(false);
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    setIsLoadingWaitlist(true);
+    axios
+      .get(`${API_BASE}/waitlist/recent?limit=6`, getStaffRequestConfig())
+      .then((res) => {
+        if (isMounted) {
+          setRecentWaitlist(res.data);
+        }
+      })
+      .catch((err) => {
+        console.error(err);
+      })
+      .finally(() => {
+        if (isMounted) {
+          setIsLoadingWaitlist(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isStaffAuthenticated, staffAccessCode]);
+
+  const refreshRecentWaitlist = async () => {
+    if (!isStaffAuthenticated) return;
+    setIsLoadingWaitlist(true);
+    try {
+      const refreshedWaitlist = await axios.get(
+        `${API_BASE}/waitlist/recent?limit=6`,
+        getStaffRequestConfig(),
+      );
+      setRecentWaitlist(refreshedWaitlist.data);
+    } finally {
+      setIsLoadingWaitlist(false);
+    }
+  };
+
+  const refreshAdminSummary = async () => {
+    if (!isStaffAuthenticated) return;
+    try {
+      const refreshedSummary = await axios.get(
+        `${API_BASE}/admin/summary`,
+        getStaffRequestConfig(),
+      );
+      setAdminSummary(refreshedSummary.data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const handleStaffLogin = async () => {
     const trimmedCode = staffLoginInput.trim();
-
     if (!trimmedCode) {
       setStaffLoginError("Enter the staff access code.");
       return;
@@ -121,9 +202,7 @@ export default function App() {
 
     try {
       await axios.get(`${API_BASE}/admin/summary`, {
-        headers: {
-          "X-Staff-Access": trimmedCode,
-        },
+        headers: { "X-Staff-Access": trimmedCode },
       });
       sessionStorage.setItem("staff_access_code", trimmedCode);
       setStaffAccessCode(trimmedCode);
@@ -142,19 +221,11 @@ export default function App() {
     setStaffAccessCode("");
     setStaffLoginInput("");
     setStaffLoginError("");
+    setAdminSummary(null);
+    setRecentWaitlist([]);
+    setIsLoadingAdmin(false);
+    setIsLoadingWaitlist(false);
     setMessage({ text: "Staff access disabled.", type: "success" });
-  };
-
-  const handleSwapRoute = () => {
-    if (!origin || !destination) return;
-    setOrigin(destination);
-    setDestination(origin);
-    setSeats([]);
-    setFare(null);
-    setFareBreakdown(null);
-    setSelectedSeat(null);
-    setPassengerName("");
-    setMessage({ text: "", type: "" });
   };
 
   const fetchAvailabilityAndFare = async () => {
@@ -190,6 +261,19 @@ export default function App() {
     }
   };
 
+  const handleSwapRoute = () => {
+    if (!origin || !destination) return;
+    setOrigin(destination);
+    setDestination(origin);
+    setSeats([]);
+    setFare(null);
+    setFareBreakdown(null);
+    setSelectedSeat(null);
+    setPassengerName("");
+    setWaitlistPassengerName("");
+    setMessage({ text: "", type: "" });
+  };
+
   const handleBooking = async () => {
     if (!selectedSeat || !passengerName.trim()) {
       setMessage({
@@ -213,7 +297,9 @@ export default function App() {
         type: "success",
       });
       setPassengerName("");
+      setWaitlistPassengerName("");
       await fetchAvailabilityAndFare();
+      await refreshAdminSummary();
     } catch (err) {
       setMessage({
         text:
@@ -227,44 +313,53 @@ export default function App() {
   };
 
   const handleJoinWaitlist = async () => {
-  if (!waitlistPassengerName.trim()) {
-    setMessage({
-      text: "Enter a passenger name before joining the waitlist.",
-      type: "error",
-    });
-    return;
-  }
+    if (!waitlistPassengerName.trim()) {
+      setMessage({
+        text: "Enter a passenger name before joining the waitlist.",
+        type: "error",
+      });
+      return;
+    }
 
-  if (!origin || !destination || origin === destination || !travelDate) {
-    setMessage({
-      text: "Select a valid route and travel date before joining the waitlist.",
-      type: "error",
-    });
-    return;
-  }
+    if (!origin || !destination || origin === destination || !travelDate) {
+      setMessage({
+        text: "Select a valid route and travel date before joining the waitlist.",
+        type: "error",
+      });
+      return;
+    }
 
-  setIsWaitlisting(true);
-  try {
-    const res = await axios.post(`${API_BASE}/waitlist`, {
-      origin_station_id: parseInt(origin),
-      destination_station_id: parseInt(destination),
-      travel_date: travelDate,
-      passenger_name: waitlistPassengerName,
-    });
-    setMessage({
-      text: `Added ${res.data.passenger_name} to the waitlist for ${res.data.origin} to ${res.data.destination} (queue #${res.data.queue_position}).`,
-      type: "success",
-    });
-    setWaitlistPassengerName("");
-  } catch (err) {
-    setMessage({
-      text: err.response?.data?.detail || "Unable to join the waitlist.",
-      type: "error",
-    });
-  } finally {
-    setIsWaitlisting(false);
-  }
-};
+    setIsWaitlisting(true);
+    try {
+      const res = await axios.post(`${API_BASE}/waitlist`, {
+        origin_station_id: parseInt(origin),
+        destination_station_id: parseInt(destination),
+        travel_date: travelDate,
+        passenger_name: waitlistPassengerName,
+      });
+      setMessage({
+        text: `Added ${res.data.passenger_name} to the waitlist for ${res.data.origin} to ${res.data.destination} (queue #${res.data.queue_position}).`,
+        type: "success",
+      });
+      setWaitlistPassengerName("");
+      await refreshRecentWaitlist();
+      await refreshAdminSummary();
+    } catch (err) {
+      setMessage({
+        text: err.response?.data?.detail || "Unable to join the waitlist.",
+        type: "error",
+      });
+    } finally {
+      setIsWaitlisting(false);
+    }
+  };
+
+  const availableSeatCount = seats.filter((seat) => seat.is_available).length;
+
+  const journeySummary =
+    originStation && destinationStation
+      ? `${originStation.name} to ${destinationStation.name}`
+      : "Select a route to see live availability";
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(34,197,94,0.16),_transparent_38%),linear-gradient(180deg,#f8fafc_0%,#eff6ff_100%)] px-4 py-6 text-slate-900 sm:px-6 lg:px-8">
@@ -291,7 +386,7 @@ export default function App() {
                   <MapPin className="h-4 w-4" />
                   Route
                 </span>
-                <span className="text-sm font-medium">Select a route</span>
+                <span className="text-sm font-medium">{journeySummary}</span>
               </div>
               <div className="flex items-center justify-between rounded-2xl bg-white/5 px-4 py-3">
                 <span className="flex items-center gap-2 text-sm text-slate-300">
@@ -300,7 +395,7 @@ export default function App() {
                 </span>
                 <span className="text-sm font-medium">
                   {seats.length > 0
-                    ? `${seats.filter((s) => s.is_available).length}/${seats.length}`
+                    ? `${availableSeatCount}/${seats.length}`
                     : "Waiting for search"}
                 </span>
               </div>
@@ -399,9 +494,9 @@ export default function App() {
                       setOrigin(e.target.value);
                       setSeats([]);
                       setFare(null);
-                      setFareBreakdown(null);
                       setSelectedSeat(null);
                       setPassengerName("");
+                      setWaitlistPassengerName("");
                     }}
                     disabled={isLoadingStations}
                   >
@@ -432,9 +527,9 @@ export default function App() {
                       setDestination(e.target.value);
                       setSeats([]);
                       setFare(null);
-                      setFareBreakdown(null);
                       setSelectedSeat(null);
                       setPassengerName("");
+                      setWaitlistPassengerName("");
                     }}
                     disabled={isLoadingStations}
                   >
@@ -468,6 +563,7 @@ export default function App() {
                     setFareBreakdown(null);
                     setSelectedSeat(null);
                     setPassengerName("");
+                    setWaitlistPassengerName("");
                   }}
                   className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 outline-none transition focus:border-emerald-500 focus:bg-white"
                 />
@@ -506,13 +602,22 @@ export default function App() {
 
             {seats.length > 0 ? (
               <div className="mt-6">
-                <div className="mb-4">
-                  <h3 className="text-lg font-semibold text-slate-900">
-                    Seat map
-                  </h3>
-                  <p className="text-sm text-slate-500">
-                    Available seats appear in green. Choose one to continue.
-                  </p>
+                <div className="mb-4 flex items-end justify-between gap-3">
+                  <div>
+                    <h3 className="text-lg font-semibold text-slate-900">
+                      Seat map
+                    </h3>
+                    <p className="text-sm text-slate-500">
+                      Available seats appear in green. Choose one to continue.
+                    </p>
+                  </div>
+                  <div className="text-right text-sm text-slate-500">
+                    <div className="font-medium text-slate-900">
+                      {journeySummary}
+                    </div>
+                    <div>LKR {fare}</div>
+                    <div>{travelDate || "No travel date selected"}</div>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
@@ -545,7 +650,8 @@ export default function App() {
                       </h3>
                       <p className="text-sm text-slate-500">
                         You are booking {selectedSeatDetails.coach_number} seat{" "}
-                        {selectedSeatDetails.seat_number} on {travelDate}.
+                        {selectedSeatDetails.seat_number} for {journeySummary}{" "}
+                        on {travelDate}.
                       </p>
                     </div>
 
@@ -581,59 +687,204 @@ export default function App() {
             )}
           </section>
 
-          <section className="rounded-[2rem] border border-slate-200/80 bg-white/85 p-6 shadow-xl shadow-slate-900/5 backdrop-blur sm:p-8">
-            <h2 className="text-xl font-semibold text-slate-900">Waitlist</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-500">
-              Join a queue when a segment is fully booked.
-            </p>
+          <aside className="space-y-6">
+            <section
+              className={
+                isStaffAuthenticated
+                  ? "rounded-[2rem] border border-slate-200/80 bg-white/85 p-6 shadow-xl shadow-slate-900/5 backdrop-blur sm:p-8"
+                  : "hidden"
+              }
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-xl font-semibold text-slate-900">
+                    Admin snapshot
+                  </h2>
+                  <p className="mt-2 text-sm leading-6 text-slate-500">
+                    Live operational metrics for coaches, seats, bookings, and
+                    revenue.
+                  </p>
+                </div>
+              </div>
 
-            <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto]">
-              <input
-                type="text"
-                value={waitlistPassengerName}
-                onChange={(e) => setWaitlistPassengerName(e.target.value)}
-                placeholder="Passenger name for waitlist"
-                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 outline-none transition focus:border-emerald-500 focus:bg-white"
-              />
-              <button
-                type="button"
-                onClick={handleJoinWaitlist}
-                disabled={
-                  isWaitlisting ||
-                  !origin ||
-                  !destination ||
-                  origin === destination ||
-                  !travelDate
-                }
-                className="inline-flex items-center justify-center rounded-2xl bg-amber-500 px-5 py-3 font-semibold text-white transition hover:bg-amber-600 disabled:cursor-not-allowed disabled:bg-amber-300"
-              >
-                {isWaitlisting ? "Joining..." : "Join waitlist"}
-              </button>
-            </div>
-
-            <div className={isStaffAuthenticated ? "mt-6 space-y-3" : "hidden"}>
-              {isLoadingWaitlist ? (
-                <div className="text-sm text-slate-500">Loading waitlist...</div>
-              ) : recentWaitlist.length > 0 ? (
-                recentWaitlist.map((entry) => (
-                  <div key={entry.waitlist_id} className="rounded-2xl border p-4 bg-white">
-                    <div className="flex justify-between">
-                      <div>
-                        <div className="font-semibold">{entry.passenger_name}</div>
-                        <div className="text-sm text-slate-500">{entry.origin} to {entry.destination}</div>
+              {isLoadingAdmin ? (
+                <div className="mt-5 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-500">
+                  Loading admin metrics...
+                </div>
+              ) : adminSummary ? (
+                <div className="mt-5 space-y-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                      <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400">
+                        Bookings
                       </div>
-                      <div className="font-semibold text-slate-900">Queue #{entry.queue_position}</div>
+                      <div className="mt-1 text-lg font-semibold text-slate-900">
+                        {adminSummary.total_bookings}
+                      </div>
+                    </div>
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                      <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400">
+                        Revenue
+                      </div>
+                      <div className="mt-1 text-lg font-semibold text-slate-900">
+                        LKR {adminSummary.revenue.toFixed(0)}
+                      </div>
+                    </div>
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                      <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400">
+                        Seats used
+                      </div>
+                      <div className="mt-1 text-lg font-semibold text-slate-900">
+                        {adminSummary.unique_seats_used}/
+                        {adminSummary.total_seats}
+                      </div>
+                    </div>
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                      <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400">
+                        Utilization
+                      </div>
+                      <div className="mt-1 text-lg font-semibold text-slate-900">
+                        {adminSummary.utilization_pct.toFixed(0)}%
+                      </div>
+                    </div>
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                      <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400">
+                        Waitlist
+                      </div>
+                      <div className="mt-1 text-lg font-semibold text-slate-900">
+                        {adminSummary.waitlist_count}
+                      </div>
                     </div>
                   </div>
-                ))
+
+                  <div className="space-y-3">
+                    {adminSummary.coach_utilization.map((coach) => (
+                      <div
+                        key={coach.coach_number}
+                        className="rounded-2xl border border-slate-200 bg-white p-4"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <div className="text-sm font-semibold text-slate-900">
+                              {coach.coach_number}
+                            </div>
+                            <div className="text-xs text-slate-500">
+                              {coach.unique_seats_used}/{coach.total_seats}{" "}
+                              unique seats used
+                            </div>
+                          </div>
+                          <div className="text-right text-sm text-slate-500">
+                            <div className="font-semibold text-slate-900">
+                              {coach.booking_count} bookings
+                            </div>
+                            <div>
+                              {coach.utilization_pct.toFixed(0)}% utilized
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               ) : (
-                <div className="text-sm text-slate-500">No active waitlist entries yet.</div>
+                <div className="mt-5 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-500">
+                  Admin metrics are unavailable.
+                </div>
               )}
-            </div>
+            </section>
 
-          </section>
+            <section className="rounded-[2rem] border border-slate-200/80 bg-white/85 p-6 shadow-xl shadow-slate-900/5 backdrop-blur sm:p-8">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-xl font-semibold text-slate-900">
+                    Waitlist
+                  </h2>
+                  <p className="mt-2 text-sm leading-6 text-slate-500">
+                    Join a queue when a segment is fully booked, and review the
+                    most recent requests.
+                  </p>
+                </div>
+              </div>
 
-          <aside className="space-y-6">
+              <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="text-sm font-semibold text-slate-900">
+                  Selected route
+                </div>
+                <div className="mt-1 text-sm text-slate-500">
+                  {journeySummary} on {travelDate || "no date selected"}
+                </div>
+                <div className="mt-2 text-sm text-slate-700">
+                  {seats.length > 0 && availableSeatCount === 0
+                    ? "This segment is fully booked. You can still join the waitlist."
+                    : "If the selected segment becomes full, passengers can be queued here."}
+                </div>
+              </div>
+
+              <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto]">
+                <input
+                  type="text"
+                  value={waitlistPassengerName}
+                  onChange={(e) => setWaitlistPassengerName(e.target.value)}
+                  placeholder="Passenger name for waitlist"
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 outline-none transition focus:border-emerald-500 focus:bg-white"
+                />
+                <button
+                  type="button"
+                  onClick={handleJoinWaitlist}
+                  disabled={
+                    isWaitlisting ||
+                    !origin ||
+                    !destination ||
+                    origin === destination ||
+                    !travelDate
+                  }
+                  className="inline-flex items-center justify-center rounded-2xl bg-amber-500 px-5 py-3 font-semibold text-white transition hover:bg-amber-600 disabled:cursor-not-allowed disabled:bg-amber-300"
+                >
+                  {isWaitlisting ? "Joining..." : "Join waitlist"}
+                </button>
+              </div>
+
+              <div
+                className={isStaffAuthenticated ? "mt-6 space-y-3" : "hidden"}
+              >
+                {isLoadingWaitlist ? (
+                  <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-500">
+                    Loading waitlist entries...
+                  </div>
+                ) : recentWaitlist.length > 0 ? (
+                  recentWaitlist.map((entry) => (
+                    <div
+                      key={entry.waitlist_id}
+                      className="rounded-2xl border border-slate-200 bg-white p-4"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="text-sm font-semibold text-slate-900">
+                            {entry.passenger_name}
+                          </div>
+                          <div className="mt-1 text-sm text-slate-500">
+                            {entry.origin} to {entry.destination}
+                          </div>
+                          <div className="mt-1 text-xs text-slate-400">
+                            {entry.travel_date}
+                          </div>
+                        </div>
+                        <div className="text-right text-sm text-slate-500">
+                          <div className="font-semibold text-slate-900">
+                            Queue #{entry.queue_position}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-500">
+                    No active waitlist entries yet.
+                  </div>
+                )}
+              </div>
+            </section>
+
             {fareBreakdown && (
               <section className="rounded-[2rem] border border-slate-200/80 bg-white/85 p-6 shadow-xl shadow-slate-900/5 backdrop-blur sm:p-8">
                 <h2 className="text-xl font-semibold text-slate-900">
