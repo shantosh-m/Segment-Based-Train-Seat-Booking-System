@@ -40,26 +40,26 @@ The same variables are available in `.env.example` for local overrides.
 - The same code is used in the frontend staff login card and the backend API guard.
 
 
-📐 Core Architecture & Design Decisions
+## 📐 Core Architecture & Design Decisions
 
-## Concurrency Safety: Pessimistic Row-Level Locking (FOR UPDATE)
+### Concurrency Safety: Pessimistic Row-Level Locking (FOR UPDATE)
 
 implemented pessimistic database locking (Seat.with_for_update()) inside an explicit transaction block during booking creation.
 
 By acquiring SELECT ... FOR UPDATE on the requested Seat row at the start of the transaction, PostgreSQL serializes incoming booking requests for that specific seat. Other concurrent attempts wait cleanly until the active transaction either commits or rolls back, guaranteeing zero double-bookings.
 
-## Dynamic Distance & Tiered Pricing Engine
+### Dynamic Distance & Tiered Pricing Engine
 
 Fares are computed dynamically based on linear track distance (d), journey distance tiering, and time-based peak factors:
 
 
-🌟 Extra Credit Features Built
+## 🌟 Extra Credit Features Built
 
-## Automated FIFO Waitlist Engine:
+### Automated FIFO Waitlist Engine:
 
 - Passengers attempting to book fully occupied segments can join a queue.
 
-## Staff Security & Role-Based Administrative Tools:
+### Staff Security & Role-Based Administrative Tools:
 
 - Protected endpoints guarded by FastAPI dependency header guards (X-Staff-Access).
 
@@ -67,7 +67,7 @@ Fares are computed dynamically based on linear track distance (d), journey dista
 
 - Administrative Snapshot Dashboard showing real-time revenue, total bookings, overall line utilization %, and per-coach utilization breakdown.
 
-## Booking History Audit Log & Search Tools:
+### Booking History Audit Log & Search Tools:
 
 - Searchable, sortable passenger reservation history.
 
@@ -75,7 +75,7 @@ Fares are computed dynamically based on linear track distance (d), journey dista
 
 - CSV Export utility generating downloadable .csv audit logs directly from the UI.
 
-## Interactive Fare Breakdown UI:
+### Interactive Fare Breakdown UI:
 
 - Interactive UI card surfacing the underlying pricing components (distance charge, length multiplier, peak surcharge) before checkout.
     
